@@ -1,0 +1,56 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Versões compartilhadas: um único lugar para atualizar (Renovate agrupa por catálogo).
+catalog:
+  '@types/node': ^22.19.0
+  '@types/react': ^19.2.0
+  '@types/react-dom': ^19.2.0
+  eslint: ^9.39.0
+  next: ^16.4.0
+  prettier: ^3.6.0
+  react: ^19.3.0
+  react-dom: ^19.3.0
+  tailwindcss: ^4.3.3
+  '@tailwindcss/postcss': ^4.3.3
+  turbo: ^2.11.7
+  typescript: ~6.0.2
+  typescript-eslint: ^8.71.1
+  vitest: ^5.0.3
+  zod: ^4.3.3
+
+minimumReleaseAgeExclude:
+  - '@next/eslint-plugin-next@16.4.0'
+  - eslint-config-next@16.4.0
+  - '@sentry/bundler-plugins@11.5.0'
+  - '@sentry/core@11.5.0'
+  - '@sentry/nestjs@11.5.0'
+  - '@sentry/node@11.5.0'
+  - '@sentry/opentelemetry@11.5.0'
+  - '@sentry/server-runtime-injection@11.5.0'
+  - '@sentry/server-utils@11.5.0'
+  - '@next/env@16.4.0'
+  - '@next/swc-darwin-arm64@16.4.0'
+  - '@next/swc-darwin-x64@16.4.0'
+  - '@next/swc-linux-arm64-gnu@16.4.0'
+  - '@next/swc-linux-arm64-musl@16.4.0'
+  - '@next/swc-linux-x64-gnu@16.4.0'
+  - '@next/swc-linux-x64-musl@16.4.0'
+  - '@next/swc-win32-arm64-msvc@16.4.0'
+  - '@next/swc-win32-x64-msvc@16.4.0'
+  - next@16.4.0
+
+# pnpm 12: só pacotes listados com `true` executam scripts de instalação.
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  sharp: true
+  '@nestjs/core': false
+  '@sentry/cli': false
+  unrs-resolver: false
+  # Nativos opcionais com binários pré-compilados ou fallback em JS:
+  cpu-features: false
+  ssh2: false
+  msgpackr-extract: false
+  protobufjs: false

@@ -1,0 +1,35 @@
+{
+  "name": "@f4d/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cliente HTTP tipado gerado do OpenAPI de @f4d/contracts. Usado pelo web hoje e pelo app mobile no futuro.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate": "openapi-typescript ../contracts/openapi.json -o src/schema.ts",
+    "build": "pnpm generate && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm generate && tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@f4d/contracts": "workspace:*",
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "@f4d/config-eslint": "workspace:*",
+    "@f4d/config-typescript": "workspace:*",
+    "eslint": "catalog:",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

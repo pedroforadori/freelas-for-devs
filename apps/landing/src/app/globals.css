@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+@import '@f4d/ui/theme.css';
+
+/* Componentes compartilhados também precisam ter suas classes geradas. */
+@source '../../../../packages/ui/src';

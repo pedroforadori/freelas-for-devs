@@ -1,0 +1,48 @@
+/*
+ * Tokens de design da Freelas 4 Devs (Tailwind v4, CSS-first).
+ * Base: template Positivus (Figma, frame "Style" 325:241) — ver docs/architecture.md §11.
+ * Importado por apps/web e apps/landing:  @import "@f4d/ui/theme.css";
+ */
+@theme {
+  --color-accent: #b9ff66;
+  --color-dark: #191a23;
+  --color-surface: #f3f3f3;
+  --color-bg: #ffffff;
+  --color-muted: #6b6c75;
+
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+
+  /* Escala tipográfica (desktop; mobile via utilitários responsivos). */
+  --text-h1: 3.75rem; /* 60px */
+  --text-h1--line-height: 1.28;
+  --text-h2: 2.5rem; /* 40px */
+  --text-h2--line-height: 1.28;
+  --text-h3: 1.875rem; /* 30px */
+  --text-h3--line-height: 1.28;
+  --text-h4: 1.25rem; /* 20px */
+  --text-h4--line-height: 1.28;
+  --text-body: 1.125rem; /* 18px */
+  --text-body--line-height: 1.4;
+
+  --radius-card: 45px;
+  --radius-button: 14px;
+  --radius-pill: 7px;
+
+  /* Sombra sólida deslocada — assinatura visual dos cards. */
+  --shadow-brutal: 0 5px 0 0 var(--color-dark);
+
+  --container-content: 1240px;
+}
+
+@layer base {
+  html {
+    color: var(--color-dark);
+    background: var(--color-bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-dark);
+    outline-offset: 3px;
+  }
+}

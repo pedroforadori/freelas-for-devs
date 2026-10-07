@@ -1,0 +1,40 @@
+{
+  "name": "@f4d/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Schemas Zod de request/response, rotas e códigos de erro compartilhados entre API, web e mobile.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "default": "./dist/openapi.js"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/generate-openapi.js",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "zod-openapi": "^6.0.2"
+  },
+  "devDependencies": {
+    "@f4d/config-eslint": "workspace:*",
+    "@f4d/config-typescript": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

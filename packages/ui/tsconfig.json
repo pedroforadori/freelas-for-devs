@@ -1,0 +1,5 @@
+{
+  "extends": "@f4d/config-typescript/nextjs.json",
+  "compilerOptions": { "plugins": [] },
+  "include": ["src"]
+}

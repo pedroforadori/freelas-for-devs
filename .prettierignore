@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+**/dist
+**/.next
+**/migrations/meta
+packages/api-client/src/schema.ts
+packages/contracts/openapi.json
+docs/design
