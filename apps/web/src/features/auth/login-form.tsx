@@ -8,7 +8,7 @@ import { Field, fieldA11y, Input } from '@f4d/ui/components/field';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { api, ensureCsrf } from '@/lib/api';
@@ -111,15 +111,27 @@ export function LoginForm() {
 }
 
 /** Retorno do login social para contas com 2FA: o desafio chega no fragmento (#desafio=). */
+/**
+ * Desafio de 2FA vindo do login social, no fragmento (#desafio=). Lido via
+ * useSyncExternalStore: no servidor não há fragmento (snapshot `undefined`), no browser sim —
+ * sem divergência de hidratação. O último valor lido fica guardado porque, logo depois, o
+ * fragmento é apagado da barra de endereço.
+ */
+let lastChallenge: string | null = null;
+const readChallenge = (): string | null => {
+  const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('desafio');
+  if (fromHash) lastChallenge = fromHash;
+  return lastChallenge;
+};
+const noSubscription = () => () => undefined;
+
 export function OAuthMfaStep() {
   const completeSignIn = useCompleteSignIn();
-  // undefined = ainda lendo o fragmento (só existe no browser; ler no render quebraria a hidratação).
-  const [challenge, setChallenge] = useState<string | null | undefined>(undefined);
+  const challenge = useSyncExternalStore(noSubscription, readChallenge, () => undefined);
 
   useEffect(() => {
-    setChallenge(new URLSearchParams(window.location.hash.slice(1)).get('desafio'));
     // Tira o desafio da barra de endereço (e do histórico) assim que ele é lido.
-    window.history.replaceState(null, '', window.location.pathname);
+    if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
   if (challenge === undefined) return null;
