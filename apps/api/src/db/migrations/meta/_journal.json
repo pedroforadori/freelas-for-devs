@@ -29,6 +29,20 @@
       "when": 1791398343694,
       "tag": "0003_auth_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791398717951,
+      "tag": "0004_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791398718245,
+      "tag": "0005_seed_catalog",
+      "breakpoints": true
     }
   ]
 }

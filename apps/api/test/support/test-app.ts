@@ -186,3 +186,28 @@ export const lastEmailToken = (
   if (!token) throw new Error(`Nenhum e-mail ${tag} para ${to}`);
   return token;
 };
+
+let adminCounter = 0;
+
+/**
+ * Admin pronto para usar o painel: provisionado via caso de uso (como o CLI faz), com senha
+ * definida e 2FA ativo — sessão nível 2.
+ */
+export const createAdminSession = async (t: TestApp): Promise<BrowserSession> => {
+  const { ProvisionAdmin } =
+    await import('../../src/modules/identity/application/admin-use-cases.js');
+  const { totpCodeAt } = await import('../fakes/identity.js');
+  const email = `admin${(adminCounter += 1)}@freelas4devs.test`;
+  const password = 'cavalo correto bateria grampo';
+
+  const provisioned = await t.app.get(ProvisionAdmin).execute({ email, displayName: 'Admin' });
+  const token = new URL(provisioned.passwordSetupUrl).searchParams.get('token')!;
+  const admin = await new BrowserSession(t.app).init();
+  await admin.request('POST', '/v1/auth/password/reset', { body: { token, password } });
+  await admin.request('POST', '/v1/auth/login', { body: { email, password } });
+  const { secret } = (await admin.request('POST', '/v1/auth/mfa/setup')).json<{ secret: string }>();
+  await admin.request('POST', '/v1/auth/mfa/enable', {
+    body: { code: totpCodeAt(secret, t.clock.now()) },
+  });
+  return admin;
+};

@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Redis } from 'ioredis';
 import { HealthModule } from './modules/health/health.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
+import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { ConfigModule, ENV } from './shared/config/config.module.js';
 import type { Env } from './shared/config/env.js';
 import { CoreModule } from './shared/infra/core.module.js';
@@ -42,6 +43,7 @@ export const infrastructureModules = [
     }),
     HealthModule,
     IdentityModule,
+    ProfilesModule,
   ],
   controllers: [OpenApiController],
   providers: [

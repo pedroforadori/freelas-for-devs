@@ -9,7 +9,7 @@ const migrationsFolder = fileURLToPath(new URL('../../src/db/migrations', import
 
 export interface TestDatabase {
   db: Database;
-  /** Limpa todas as tabelas da aplicação entre testes. */
+  /** Limpa as tabelas da aplicação entre testes (preserva catálogos semeados pelas migrações). */
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -30,7 +30,8 @@ export const createTestDatabase = async (): Promise<TestDatabase> => {
     db,
     reset: async () => {
       const { rows } = await client.query<{ tablename: string }>(
-        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '__drizzle_migrations'`,
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+           AND tablename NOT IN ('__drizzle_migrations', 'stacks', 'levels')`,
       );
       if (rows.length === 0) return;
       await client.exec(`TRUNCATE ${rows.map((r) => `"${r.tablename}"`).join(', ')} CASCADE`);
