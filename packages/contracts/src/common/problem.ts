@@ -8,6 +8,10 @@ export const ErrorCode = {
   ValidationFailed: 'VALIDATION_FAILED',
   Unauthenticated: 'UNAUTHENTICATED',
   Forbidden: 'FORBIDDEN',
+  /** Ação exige sessão com segundo fator (2FA). */
+  MfaRequired: 'MFA_REQUIRED',
+  /** Token CSRF ausente/inválido ou origem não permitida. */
+  CsrfFailed: 'CSRF_FAILED',
   NotFound: 'NOT_FOUND',
   Conflict: 'CONFLICT',
   InvalidStateTransition: 'INVALID_STATE_TRANSITION',

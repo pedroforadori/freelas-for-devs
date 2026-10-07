@@ -10,6 +10,7 @@ import { ErrorCode, type ProblemDetails } from '@f4d/contracts';
 import * as Sentry from '@sentry/nestjs';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { DomainError } from '../../kernel/domain-error.js';
+import { ProblemError } from './problem.error.js';
 import { RequestValidationError } from './request-validation.error.js';
 
 const DOMAIN_STATUS: Record<string, number> = {
@@ -17,6 +18,9 @@ const DOMAIN_STATUS: Record<string, number> = {
   [ErrorCode.Conflict]: HttpStatus.CONFLICT,
   [ErrorCode.InvalidStateTransition]: HttpStatus.CONFLICT,
   [ErrorCode.Forbidden]: HttpStatus.FORBIDDEN,
+  [ErrorCode.Unauthenticated]: HttpStatus.UNAUTHORIZED,
+  [ErrorCode.ValidationFailed]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.RateLimited]: HttpStatus.TOO_MANY_REQUESTS,
 };
 
 const HTTP_CODE: Record<number, ErrorCode> = {
@@ -56,6 +60,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     problem.instance = req.url;
     problem.requestId = String(req.id);
 
+    const retryAfter =
+      exception instanceof DomainError ? exception.details.retryAfterSeconds : undefined;
+    if (typeof retryAfter === 'number') void reply.header('retry-after', String(retryAfter));
+
     if (problem.status >= 500) {
       this.logger.error({ err: exception, requestId: req.id }, 'Erro não tratado');
       Sentry.captureException(exception, { tags: { requestId: String(req.id) } });
@@ -75,6 +83,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         'Um ou mais campos são inválidos.',
         exception.issues,
       );
+    }
+    if (exception instanceof ProblemError) {
+      return this.problem(exception.status, exception.code, exception.message);
     }
     if (exception instanceof DomainError) {
       const status = DOMAIN_STATUS[exception.code] ?? HttpStatus.UNPROCESSABLE_ENTITY;

@@ -31,6 +31,11 @@ export default tseslint.config(
     },
   },
   {
+    // Matchers do Vitest (`expect.any`, `objectContaining`) são tipados como `any`.
+    files: ['**/*.test.ts', 'test/**/*.ts'],
+    rules: { '@typescript-eslint/no-unsafe-assignment': 'off' },
+  },
+  {
     files: ['src/**/domain/**/*.ts', 'src/shared/kernel/**/*.ts'],
     rules: {
       'no-restricted-imports': [

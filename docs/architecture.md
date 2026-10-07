@@ -473,6 +473,8 @@ Prefixo `/v1`. Respostas de erro no formato **RFC 9457 (problem+json)** com `cod
 - **Arquitetura**: teste de boundaries (domínio sem frameworks, rotas com permissão).
 - **Carga** (k6) antes do beta: chat com 1k conexões e 2 réplicas do realtime, e abertura de rodadas concorrentes.
 
+**Banco nos testes sem Docker:** repositórios e fluxos e2e rodam contra **PGlite** (Postgres real em WASM, em processo) com as migrações aplicadas; Redis é simulado com `ioredis-mock` e filas BullMQ com captura em memória. Testcontainers fica para concorrência real entre conexões (`test/integration`).
+
 **CI (GitHub Actions)**: `pnpm install --frozen-lockfile` → `turbo run lint typecheck test build --affected` com cache remoto → integração e e2e da API com services → Playwright em preview → `drizzle-kit check` e migração dry-run → gitleaks, CodeQL, `pnpm audit` → build das imagens Docker. Renovate para dependências. Conventional Commits + changesets (versionar `contracts`/`api-client`).
 
 **CD e ambientes**
@@ -627,7 +629,7 @@ Seguindo a RD Station, cada LP de campanha tem **um único objetivo** e navegaç
 - **Imagens**: ilustrações em **SVG otimizado (SVGO)**, inline quando pequenas. Fotos (futuras) via `next/image` em AVIF/WebP com `sizes`; o elemento de LCP recebe `priority`.
 - **CSS**: Tailwind v4 com tokens do Positivus adaptados em `packages/ui/theme.css` (compartilhados com `apps/web` para consistência visual). Sombra sólida e bordas via utilitários, sem bibliotecas de animação.
 - **Terceiros**: nenhum script de terceiro no carregamento. Analytics **cookieless (Plausible ou Umami)**, sem banner de consentimento e alinhado à LGPD. Pixel de anúncios só depois de consentimento, carregado com `next/script strategy="lazyOnload"`.
-- **Orçamento**: LCP < 2,0 s (4G móvel), CLS < 0,05, INP < 200 ms, JS de primeira carga < 70 KB gz. **Lighthouse CI** no pipeline falha se o score ficar abaixo de 95, e `web-vitals` reporta dados de campo (Vercel Speed Insights).
+- **Orçamento**: LCP < 2,0 s (4G móvel), CLS < 0,05, INP < 200 ms, JS de primeira carga ≤ ~175 KB gz (baseline medido do runtime do Next 16 App Router; decisão de 2026-10-07: manter App Router, sem crescer além do baseline). **Lighthouse CI** no pipeline falha se o score ficar abaixo de 95, e `web-vitals` reporta dados de campo (Vercel Speed Insights).
 - **Acessibilidade**: contraste AA (texto sobre lima sempre `#191A23`), foco visível, accordions nativos acessíveis.
 
 ### Conversão e medição

@@ -1,11 +1,13 @@
-import type { DomainEvent } from './domain-event.js';
+import type { PendingDomainEvent } from './domain-event.js';
 
 /**
  * Raiz de agregado: fronteira de consistência transacional.
- * `version` sustenta o lock otimista; eventos são coletados e drenados pelo repositório.
+ * `version` sustenta o lock otimista; eventos são coletados e drenados pelo repositório,
+ * que os grava no outbox (atribuindo o id) na mesma transação.
  */
 export abstract class AggregateRoot<TId extends string = string> {
-  private pendingEvents: DomainEvent[] = [];
+  protected abstract readonly aggregateType: string;
+  private pendingEvents: PendingDomainEvent[] = [];
 
   protected constructor(
     readonly id: TId,
@@ -16,12 +18,18 @@ export abstract class AggregateRoot<TId extends string = string> {
     return this.currentVersion;
   }
 
-  protected record(event: DomainEvent): void {
-    this.pendingEvents.push(event);
+  protected record(type: string, occurredAt: Date, payload: Record<string, unknown> = {}): void {
+    this.pendingEvents.push({
+      type,
+      aggregateType: this.aggregateType,
+      aggregateId: this.id,
+      occurredAt,
+      payload,
+    });
   }
 
   /** Retorna e limpa os eventos pendentes; chamado pelo repositório ao persistir. */
-  pullEvents(): DomainEvent[] {
+  pullEvents(): PendingDomainEvent[] {
     const events = this.pendingEvents;
     this.pendingEvents = [];
     return events;

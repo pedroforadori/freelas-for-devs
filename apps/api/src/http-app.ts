@@ -1,3 +1,4 @@
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -27,6 +28,7 @@ export const configureHttpApp = async (
   app.useLogger(app.get(Logger));
   const env = app.get<Env>(ENV);
 
+  await app.register(cookie);
   await app.register(helmet, {
     // API só responde JSON: CSP restritiva, sem framing.
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },

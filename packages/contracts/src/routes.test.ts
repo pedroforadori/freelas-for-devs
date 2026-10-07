@@ -33,3 +33,17 @@ describe('route registry', () => {
     expect(doc.components?.schemas).toHaveProperty('ProblemDetails');
   });
 });
+
+describe('auth routes', () => {
+  it('declares an access requirement on every route', () => {
+    for (const route of allRoutes()) expect(route.auth).toBeDefined();
+  });
+
+  it('renders 204 responses without a body', () => {
+    const doc = buildOpenApiDocument();
+    const logout = doc.paths?.['/v1/auth/logout']?.post?.responses?.['204'] as {
+      content?: unknown;
+    };
+    expect(logout.content).toBeUndefined();
+  });
+});

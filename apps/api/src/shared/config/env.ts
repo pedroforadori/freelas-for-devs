@@ -11,26 +11,86 @@ const csv = z.string().transform((value) =>
  * Variáveis de ambiente validadas no boot (fail-fast). Segredos nunca têm default.
  * Referência completa em `.env.example` na raiz do repositório.
  */
-export const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  APP_VERSION: z.string().default('0.0.0-dev'),
-  PORT: z.coerce.number().int().positive().default(3333),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_VERSION: z.string().default('0.0.0-dev'),
+    PORT: z.coerce.number().int().positive().default(3333),
+    LOG_LEVEL: z
+      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+      .default('info'),
 
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
-  REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+    REDIS_URL: z.url({ protocol: /^rediss?$/ }),
 
-  /** Origens permitidas no CORS, separadas por vírgula. Nunca usar `*` (cookies httpOnly). */
-  CORS_ORIGINS: csv.pipe(z.array(z.url()).min(1)),
-  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
+    /** Origens permitidas no CORS, separadas por vírgula. Nunca usar `*` (cookies httpOnly). */
+    CORS_ORIGINS: csv.pipe(z.array(z.url()).min(1)),
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
 
-  SENTRY_DSN: z.url().optional(),
-  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+    SENTRY_DSN: z.url().optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
-  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(1000),
-  OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(100),
-});
+    OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(100).default(1000),
+    OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(100),
+
+    /** URL do apps/web, usada nos links enviados por e-mail. */
+    WEB_APP_URL: z.url().default('http://localhost:3000'),
+
+    /** Ed25519 PKCS#8 em PEM (aceita `\n` escapado). Gere com `pnpm --filter @f4d/api keys:generate`. */
+    JWT_PRIVATE_KEY: z.string().min(1).optional(),
+    JWT_KEY_ID: z
+      .string()
+      .regex(/^[\w-]{1,32}$/)
+      .default('k1'),
+    /** JSON `[{"kid":"k0","pem":"-----BEGIN PUBLIC KEY-----..."}]` com chaves ainda aceitas na rotação. */
+    JWT_PREVIOUS_PUBLIC_KEYS: z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (!value) return [];
+        try {
+          return z.array(z.object({ kid: z.string(), pem: z.string() })).parse(JSON.parse(value));
+        } catch {
+          ctx.addIssue({ code: 'custom', message: 'JSON inválido' });
+          return z.NEVER;
+        }
+      }),
+    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+
+    /** `false` só em desenvolvimento local via http. */
+    COOKIE_SECURE: z.stringbool().default(true),
+    /** Domínio pai para o cookie CSRF ser legível pelo web (ex.: `.freelas4devs.com.br`). */
+    COOKIE_DOMAIN: z.string().optional(),
+
+    MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
+    MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
+    SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
+    RESEND_API_KEY: z.string().optional(),
+  })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== 'production') return;
+    // Em produção, nada de defaults inseguros.
+    if (!env.JWT_PRIVATE_KEY)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['JWT_PRIVATE_KEY'],
+        message: 'obrigatório em produção',
+      });
+    if (!env.COOKIE_SECURE)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['COOKIE_SECURE'],
+        message: 'deve ser true em produção',
+      });
+    if (env.MAIL_TRANSPORT === 'log')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAIL_TRANSPORT'],
+        message: 'log não entrega e-mails em produção',
+      });
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

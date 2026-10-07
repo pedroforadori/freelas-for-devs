@@ -37,7 +37,12 @@ export const ContractRoute = (route: RouteContract) => {
   );
 };
 
-type Infer<T> = T extends z.ZodType ? z.output<T> : undefined;
+/** Campo declarado no contrato → tipo validado; campo ausente → `undefined`. */
+type Infer<T> = [Exclude<T, undefined>] extends [never]
+  ? undefined
+  : Exclude<T, undefined> extends z.ZodType
+    ? z.output<Exclude<T, undefined>>
+    : undefined;
 
 export type ContractRequest<R extends RouteContract> = {
   params: Infer<R['request']['params']>;
@@ -52,7 +57,8 @@ const parsePart = (
   issues: { path: string; message: string }[],
 ): unknown => {
   if (!schema) return undefined;
-  const result = schema.safeParse(value ?? (location === 'body' ? undefined : {}));
+  // Corpo ausente vira {}: o schema decide se os campos são obrigatórios (erro por campo).
+  const result = schema.safeParse(value ?? {});
   if (result.success) return result.data;
   for (const issue of result.error.issues) {
     issues.push({ path: [location, ...issue.path.map(String)].join('.'), message: issue.message });

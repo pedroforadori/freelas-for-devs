@@ -17,7 +17,7 @@ export class RedisHealthIndicator implements HealthIndicator {
   constructor(private readonly redis: Redis) {}
 
   async isHealthy(): Promise<boolean> {
-    if (this.redis.status === 'wait') await this.redis.connect();
+    // Sem fila offline, o ping falha na hora se a conexão estiver caída.
     return (await this.redis.ping()) === 'PONG';
   }
 }

@@ -11,6 +11,9 @@ export interface DomainEvent<TType extends string = string, TPayload = Record<st
   readonly payload: TPayload;
 }
 
+/** Evento registrado pelo agregado, ainda sem id (atribuído ao gravar no outbox). */
+export type PendingDomainEvent = Omit<DomainEvent, 'id'>;
+
 /** Gera identificadores. A implementação (UUIDv7) vive na infraestrutura. */
 export interface IdGenerator {
   next(): string;

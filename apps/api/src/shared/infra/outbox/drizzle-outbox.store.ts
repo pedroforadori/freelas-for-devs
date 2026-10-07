@@ -1,8 +1,14 @@
 import { asc, inArray, isNull, sql } from 'drizzle-orm';
 import { outboxEvents } from '../../../db/schema/outbox.js';
-import type { DomainEvent } from '../../kernel/domain-event.js';
+import type { DomainEvent, IdGenerator, PendingDomainEvent } from '../../kernel/domain-event.js';
 import type { Database, DbExecutor } from '../database/database-context.js';
 import type { OutboxStore, RelayOutcome } from './outbox-relay.js';
+
+/** Atribui ids (UUIDv7) aos eventos registrados pelos agregados. */
+export const assignEventIds = (
+  events: readonly PendingDomainEvent[],
+  ids: IdGenerator,
+): DomainEvent[] => events.map((event) => ({ ...event, id: ids.next() }));
 
 /** Grava eventos de domínio no outbox usando o executor da transação corrente. */
 export const appendToOutbox = async (executor: DbExecutor, events: readonly DomainEvent[]) => {

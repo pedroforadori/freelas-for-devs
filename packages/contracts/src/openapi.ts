@@ -5,7 +5,7 @@ import {
   type ZodOpenApiResponseObject,
 } from 'zod-openapi';
 import { problemDetailsSchema } from './common/problem.js';
-import type { RouteContract } from './http/route.js';
+import { noContent, type RouteContract } from './http/route.js';
 import { allRoutes } from './routes.js';
 
 const JSON_MEDIA = 'application/json';
@@ -14,7 +14,10 @@ const PROBLEM_MEDIA = 'application/problem+json';
 const toOperation = (route: RouteContract): ZodOpenApiOperationObject => {
   const responses: Record<string, ZodOpenApiResponseObject> = {};
   for (const [status, schema] of Object.entries(route.responses)) {
-    responses[status] = { description: `HTTP ${status}`, content: { [JSON_MEDIA]: { schema } } };
+    responses[status] =
+      schema === noContent
+        ? { description: `HTTP ${status} (sem conteúdo)` }
+        : { description: `HTTP ${status}`, content: { [JSON_MEDIA]: { schema } } };
   }
   responses.default = {
     description: 'Erro (RFC 9457)',
@@ -61,6 +64,7 @@ export const buildOpenApiDocument = (): OpenApiDocument => {
     components: {
       securitySchemes: {
         cookieAuth: { type: 'apiKey', in: 'cookie', name: '__Host-f4d_at' },
+        csrfHeader: { type: 'apiKey', in: 'header', name: 'x-csrf-token' },
         bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
       },
     },

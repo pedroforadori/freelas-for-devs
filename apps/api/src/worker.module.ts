@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { infrastructureModules } from './app.module.js';
+import { MailWorkerModule } from './shared/infra/mail/mail.module.js';
 import { OutboxRelayModule } from './shared/infra/outbox/outbox.module.js';
 
 /**
@@ -7,6 +8,6 @@ import { OutboxRelayModule } from './shared/infra/outbox/outbox.module.js';
  * e o cron reconciliador de prazos. Escala independentemente do processo HTTP.
  */
 @Module({
-  imports: [...infrastructureModules, OutboxRelayModule],
+  imports: [...infrastructureModules, OutboxRelayModule, MailWorkerModule],
 })
 export class WorkerModule {}

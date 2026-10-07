@@ -18,8 +18,6 @@ const redisOptions = (env: Env) => {
     ...(url.username ? { username: decodeURIComponent(url.username) } : {}),
     ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
     ...(url.protocol === 'rediss:' ? { tls: {} } : {}),
-    // Exigido pelo BullMQ para conexões bloqueantes dos workers.
-    maxRetriesPerRequest: null,
   };
 };
 
@@ -29,7 +27,8 @@ const redisOptions = (env: Env) => {
     BullModule.forRootAsync({
       inject: [ENV],
       useFactory: (env: Env) => ({
-        connection: redisOptions(env),
+        // Exigido pelo BullMQ para conexões bloqueantes dos workers.
+        connection: { ...redisOptions(env), maxRetriesPerRequest: null },
         prefix: 'f4d',
         defaultJobOptions: {
           attempts: 5,
@@ -46,7 +45,16 @@ const redisOptions = (env: Env) => {
       provide: REDIS,
       inject: [ENV],
       useFactory: (env: Env) => {
-        const redis = new Redis({ ...redisOptions(env), lazyConnect: true });
+        // Cliente da aplicação (rate limit, bloqueio de login, health): falha rápido.
+        // Diferente das conexões do BullMQ, nunca enfileira comandos à espera de reconexão —
+        // com o Redis fora, uma requisição HTTP não pode ficar pendurada.
+        const redis = new Redis({
+          ...redisOptions(env),
+          maxRetriesPerRequest: 1,
+          enableOfflineQueue: false,
+          commandTimeout: 500,
+          connectTimeout: 2_000,
+        });
         // Falhas de conexão são reportadas pelo readiness; sem listener o ioredis imprime stack cru.
         redis.on('error', () => undefined);
         return redis;

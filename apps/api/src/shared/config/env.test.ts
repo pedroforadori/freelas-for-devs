@@ -27,6 +27,18 @@ describe('loadEnv', () => {
     }
   });
 
+  it('refuses insecure defaults in production', () => {
+    try {
+      loadEnv({ ...valid, NODE_ENV: 'production', COOKIE_SECURE: 'false' });
+      expect.unreachable();
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain('JWT_PRIVATE_KEY');
+      expect(message).toContain('COOKIE_SECURE');
+      expect(message).toContain('MAIL_TRANSPORT');
+    }
+  });
+
   it('rejects wildcard CORS', () => {
     expect(() => loadEnv({ ...valid, CORS_ORIGINS: '*' })).toThrow(InvalidEnvironmentError);
   });
