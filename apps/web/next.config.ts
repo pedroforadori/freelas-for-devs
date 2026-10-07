@@ -15,7 +15,6 @@ const securityHeaders = [
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  typedRoutes: true,
   transpilePackages: ['@f4d/ui'],
   headers: () => Promise.resolve([{ source: '/:path*', headers: securityHeaders }]),
 };
