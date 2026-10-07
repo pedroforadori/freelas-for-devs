@@ -91,6 +91,21 @@ export const envSchema = z
       }),
     ),
 
+    /** Storage S3-compatível: Cloudflare R2 em produção, MinIO em dev (ver infra/docker-compose.yml). */
+    S3_ENDPOINT: z.url().optional(),
+    S3_REGION: z.string().default('auto'),
+    S3_ACCESS_KEY_ID: z.string().min(1),
+    S3_SECRET_ACCESS_KEY: z.string().min(1),
+    S3_BUCKET_QUARANTINE: z.string().default('f4d-quarantine'),
+    S3_BUCKET_FILES: z.string().default('f4d-files'),
+    /** true para MinIO; R2/S3 usam virtual-hosted style. */
+    S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+
+    /** Antivírus dos uploads. `disabled` só em desenvolvimento. */
+    MALWARE_SCAN: z.enum(['clamav', 'disabled']).default('disabled'),
+    CLAMAV_HOST: z.string().default('localhost'),
+    CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
@@ -116,6 +131,12 @@ export const envSchema = z
         code: 'custom',
         path: ['COOKIE_SECURE'],
         message: 'deve ser true em produção',
+      });
+    if (env.MALWARE_SCAN !== 'clamav')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MALWARE_SCAN'],
+        message: 'uploads exigem antivírus em produção',
       });
     if (env.MAIL_TRANSPORT === 'log')
       ctx.addIssue({

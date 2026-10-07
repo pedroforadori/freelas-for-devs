@@ -1,6 +1,7 @@
 import type { RouteContract } from './http/route.js';
 import { authRoutes } from './modules/auth.js';
 import { catalogRoutes } from './modules/catalog.js';
+import { fileRoutes } from './modules/files.js';
 import { healthRoutes } from './modules/health.js';
 import { profileRoutes } from './modules/profiles.js';
 
@@ -10,6 +11,7 @@ export const apiRoutes = {
   auth: authRoutes,
   catalog: catalogRoutes,
   profiles: profileRoutes,
+  files: fileRoutes,
 } as const;
 
 export const allRoutes = (): RouteContract[] =>

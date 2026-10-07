@@ -1,5 +1,5 @@
 # Serviços de desenvolvimento local. Uso: pnpm infra:up
-# ClamAV e stripe-cli entram nas fases que os utilizam (F1 uploads, F6 pagamentos).
+# stripe-cli entra na F6 (pagamentos).
 name: f4d
 
 services:
@@ -48,6 +48,16 @@ services:
       mc mb --ignore-existing local/f4d-quarantine local/f4d-files;
       mc anonymous set none local/f4d-quarantine local/f4d-files;
       "
+
+  # Antivírus dos uploads (protocolo clamd na porta 3310). Primeira subida baixa as assinaturas (~1–2 min).
+  clamav:
+    image: clamav/clamav:stable
+    ports: ['3310:3310']
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 10
 
   # Caixa de e-mails de desenvolvimento: http://localhost:8025
   mailpit:

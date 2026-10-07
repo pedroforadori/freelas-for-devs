@@ -43,6 +43,13 @@
       "when": 1791398718245,
       "tag": "0005_seed_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791399145405,
+      "tag": "0006_files",
+      "breakpoints": true
     }
   ]
 }

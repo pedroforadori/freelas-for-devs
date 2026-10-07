@@ -4,6 +4,7 @@ export * from './common/problem.js';
 export * from './http/route.js';
 export * from './modules/auth.js';
 export * from './modules/catalog.js';
+export * from './modules/files.js';
 export * from './modules/health.js';
 export * from './modules/profiles.js';
 export * from './routes.js';

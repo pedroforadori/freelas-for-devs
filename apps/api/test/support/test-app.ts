@@ -13,6 +13,8 @@ import { DATABASE, PG_POOL } from '../../src/shared/infra/database/database.modu
 import { FakeClock } from '../../src/shared/kernel/clock.js';
 import { REDIS } from '../../src/shared/infra/queue/queue.module.js';
 import { QueueName } from '../../src/shared/infra/queue/queue-names.js';
+import { MALWARE_SCANNER, OBJECT_STORAGE } from '../../src/modules/files/files.module.js';
+import { EicarScanner, InMemoryObjectStorage } from '../fakes/files.js';
 import { createTestDatabase, type TestDatabase } from './pglite.js';
 
 export const WEB_ORIGIN = 'http://localhost:3000';
@@ -38,6 +40,8 @@ export interface TestApp {
   database: TestDatabase;
   redis: Redis;
   mail: CapturingQueue<EmailMessage>;
+  storage: InMemoryObjectStorage;
+  fileScans: CapturingQueue<{ fileId: string }>;
   /** Relógio dos casos de uso (prazos, rotação). Começa no horário real. */
   clock: FakeClock;
   dependencies: { postgres: boolean; redis: boolean };
@@ -62,12 +66,16 @@ export const createTestApp = async (
     RATE_LIMIT_PER_MINUTE: '1000',
     COOKIE_SECURE: 'true',
     WEB_APP_URL: 'https://app.test',
+    S3_ACCESS_KEY_ID: 'test',
+    S3_SECRET_ACCESS_KEY: 'test',
     ...env,
   });
 
   const database = await createTestDatabase();
   const redis = new RedisMock();
   const mail = new CapturingQueue<EmailMessage>(QueueName.Mail);
+  const storage = new InMemoryObjectStorage();
+  const fileScans = new CapturingQueue<{ fileId: string }>(QueueName.Files);
   const dependencies = { postgres: true, redis: true };
   const clock = new FakeClock(new Date());
 
@@ -101,7 +109,13 @@ export const createTestApp = async (
     .overrideProvider(getQueueToken(QueueName.DomainEvents))
     .useValue(new CapturingQueue(QueueName.DomainEvents))
     .overrideProvider(getQueueToken(QueueName.Mail))
-    .useValue(mail);
+    .useValue(mail)
+    .overrideProvider(getQueueToken(QueueName.Files))
+    .useValue(fileScans)
+    .overrideProvider(OBJECT_STORAGE)
+    .useValue(storage)
+    .overrideProvider(MALWARE_SCANNER)
+    .useValue(new EicarScanner());
   for (const { token, value } of options.overrides ?? []) {
     builder = builder.overrideProvider(token as string).useValue(value);
   }
@@ -118,6 +132,8 @@ export const createTestApp = async (
     database,
     redis,
     mail,
+    storage,
+    fileScans,
     clock,
     dependencies,
     close: async () => {

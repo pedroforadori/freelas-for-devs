@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { InvalidEnvironmentError, loadEnv } from './env.js';
 
 const valid = {
+  S3_ACCESS_KEY_ID: 'key',
+  S3_SECRET_ACCESS_KEY: 'secret',
   DATABASE_URL: 'postgres://f4d:f4d@localhost:5432/f4d',
   REDIS_URL: 'redis://localhost:6379',
   CORS_ORIGINS: 'http://localhost:3000, http://localhost:3001',

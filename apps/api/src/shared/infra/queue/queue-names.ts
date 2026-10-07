@@ -2,6 +2,7 @@
 export const QueueName = {
   DomainEvents: 'domain-events',
   Mail: 'mail',
+  Files: 'files',
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
