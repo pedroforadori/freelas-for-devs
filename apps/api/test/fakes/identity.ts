@@ -15,9 +15,11 @@ import type { IdentityDeps } from '../../src/modules/identity/application/deps.j
 import type {
   AccessTokenClaims,
   AccessTokenIssuer,
+  AuthIdentityRepository,
   LoginAttemptLimiter,
   MfaRecord,
   MfaRepository,
+  OAuthProviderName,
   OneTimeTokenPurpose,
   OneTimeTokenRepository,
   PasswordHasher,
@@ -167,6 +169,31 @@ export class RealSecrets implements SecretTokenGenerator {
   }
 }
 
+export class InMemoryAuthIdentities implements AuthIdentityRepository {
+  readonly links: {
+    userId: string;
+    provider: OAuthProviderName;
+    providerUserId: string;
+    email: string;
+  }[] = [];
+  findUserId(provider: OAuthProviderName, providerUserId: string) {
+    const link = this.links.find(
+      (l) => l.provider === provider && l.providerUserId === providerUserId,
+    );
+    return Promise.resolve(link?.userId ?? null);
+  }
+  link(input: {
+    id: string;
+    userId: string;
+    provider: OAuthProviderName;
+    providerUserId: string;
+    email: string;
+  }) {
+    this.links.push(input);
+    return Promise.resolve();
+  }
+}
+
 export class InMemoryMfa implements MfaRepository {
   readonly records = new Map<string, MfaRecord>();
   readonly recoveryCodes: { id: string; userId: string; codeHash: string; usedAt: Date | null }[] =
@@ -269,6 +296,7 @@ export const createIdentityTestDeps = () => {
     refreshTokens: new InMemoryRefreshTokens(),
     oneTimeTokens: new InMemoryOneTimeTokens(),
     mfa: new InMemoryMfa(),
+    authIdentities: new InMemoryAuthIdentities(),
     totp: new OtpAuthTotpService(),
     cipher: new AesGcmCipher(developmentCipherKey()),
     hasher: new FakeHasher(),

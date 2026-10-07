@@ -18,6 +18,7 @@ import { EmailAlreadyRegisteredError, WeakPasswordError } from '../domain/errors
 import { User } from '../domain/user.js';
 import { AesGcmCipher, developmentCipherKey } from '../../../shared/infra/crypto/aes-gcm.cipher.js';
 import { Sha256SecretTokenGenerator } from './crypto.js';
+import { DrizzleAuthIdentityRepository } from './drizzle-auth-identity.repository.js';
 import { DrizzleMfaRepository } from './drizzle-mfa.repository.js';
 import { OtpAuthTotpService } from './totp.js';
 import {
@@ -51,6 +52,7 @@ beforeEach(async () => {
     refreshTokens: new DrizzleRefreshTokenRepository(ctx),
     oneTimeTokens: new DrizzleOneTimeTokenRepository(ctx),
     mfa: new DrizzleMfaRepository(ctx),
+    authIdentities: new DrizzleAuthIdentityRepository(ctx),
     totp: new OtpAuthTotpService(),
     cipher: new AesGcmCipher(developmentCipherKey()),
     hasher: new FakeHasher(),

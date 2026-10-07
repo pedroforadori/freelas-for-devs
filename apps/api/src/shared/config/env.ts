@@ -36,6 +36,14 @@ export const envSchema = z
 
     /** URL do apps/web, usada nos links enviados por e-mail. */
     WEB_APP_URL: z.url().default('http://localhost:3000'),
+    /** URL pública desta API (callbacks do OAuth). */
+    API_PUBLIC_URL: z.url().default('http://localhost:3333'),
+
+    /** Login social: cada provedor só é habilitado com as duas variáveis definidas. */
+    GITHUB_CLIENT_ID: z.string().optional(),
+    GITHUB_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
 
     /** Ed25519 PKCS#8 em PEM (aceita `\n` escapado). Gere com `pnpm --filter @f4d/api keys:generate`. */
     JWT_PRIVATE_KEY: z.string().min(1).optional(),

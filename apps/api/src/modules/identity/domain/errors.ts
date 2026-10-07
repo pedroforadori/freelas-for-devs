@@ -96,3 +96,12 @@ export class MfaMandatoryError extends DomainError {
     super('A verificação em duas etapas é obrigatória para administradores.');
   }
 }
+
+export class OAuthEmailNotVerifiedError extends DomainError {
+  readonly code = 'VALIDATION_FAILED';
+  constructor() {
+    super(
+      'Seu e-mail não está verificado neste provedor. Verifique-o lá ou cadastre-se com e-mail e senha.',
+    );
+  }
+}

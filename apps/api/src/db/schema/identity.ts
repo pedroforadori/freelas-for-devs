@@ -131,6 +131,26 @@ export const mfaRecoveryCodes = pgTable(
   ],
 );
 
+/** Contas externas vinculadas (login social). Um provedor+id externo aponta para um único usuário. */
+export const authIdentities = pgTable(
+  'auth_identities',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text().$type<'github' | 'google'>().notNull(),
+    providerUserId: text().notNull(),
+    /** E-mail informado pelo provedor no momento do vínculo (auditoria). */
+    email: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('auth_identities_provider_key').on(table.provider, table.providerUserId),
+    index('auth_identities_user_idx').on(table.userId),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type RefreshTokenRow = typeof refreshTokens.$inferSelect;
 export type OneTimeTokenRow = typeof oneTimeTokens.$inferSelect;

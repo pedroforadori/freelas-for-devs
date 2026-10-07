@@ -93,6 +93,37 @@ export class User extends AggregateRoot {
     return user;
   }
 
+  /** Cadastro via login social: sem senha e com o e-mail já confirmado pelo provedor. */
+  static registerViaProvider(input: {
+    id: string;
+    email: string;
+    displayName: string;
+    role: Role;
+    provider: string;
+    now: Date;
+  }): User {
+    const user = new User(
+      {
+        email: input.email.trim().toLowerCase(),
+        passwordHash: null,
+        displayName: input.displayName.trim(),
+        status: 'ACTIVE',
+        emailVerifiedAt: input.now,
+        termsAcceptedAt: input.now,
+        roles: [input.role],
+        createdAt: input.now,
+      },
+      input.id,
+      0,
+    );
+    user.record(UserEvents.Registered, input.now, {
+      userId: input.id,
+      role: input.role,
+      via: input.provider,
+    });
+    return user;
+  }
+
   static rehydrate(snapshot: UserSnapshot): User {
     const { id, version, ...props } = snapshot;
     return new User({ ...props, roles: [...props.roles] }, id, version);
@@ -137,6 +168,20 @@ export class User extends AggregateRoot {
     if (this.isEmailVerified) return;
     this.props.emailVerifiedAt = now;
     this.record(UserEvents.EmailVerified, now, { userId: this.id });
+  }
+
+  /**
+   * O provedor externo confirmou que a pessoa controla este e-mail. Se a conta local ainda não
+   * estava verificada, a senha existente pode ter sido criada por um invasor que cadastrou o
+   * e-mail da vítima antes dela ("pre-account hijacking"): a senha é descartada.
+   * Retorna true quando houve descarte (o chamador deve revogar sessões abertas).
+   */
+  confirmEmailViaProvider(now: Date): boolean {
+    if (this.isEmailVerified) return false;
+    const hadPassword = this.props.passwordHash !== null;
+    this.props.passwordHash = null;
+    this.verifyEmail(now);
+    return hadPassword;
   }
 
   changePassword(passwordHash: string, now: Date): void {

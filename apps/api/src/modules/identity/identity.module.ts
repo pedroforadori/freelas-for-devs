@@ -15,6 +15,8 @@ import type { Clock } from '../../shared/kernel/clock.js';
 import { DAY_MS, HOUR_MS } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
 import { ProvisionAdmin } from './application/admin-use-cases.js';
+import { SignInWithOAuth } from './application/oauth-use-cases.js';
+import type { OAuthProvider } from './application/ports.js';
 import { IDENTITY_DEPS, type IdentityDeps } from './application/deps.js';
 import {
   BeginMfaSetup,
@@ -45,10 +47,18 @@ import {
   DrizzleRefreshTokenRepository,
   DrizzleUserRepository,
 } from './infrastructure/drizzle-identity.repositories.js';
+import { DrizzleAuthIdentityRepository } from './infrastructure/drizzle-auth-identity.repository.js';
 import { DrizzleMfaRepository } from './infrastructure/drizzle-mfa.repository.js';
+import {
+  GitHubOAuthProvider,
+  GoogleOAuthProvider,
+  OAUTH_PROVIDERS,
+  type OAuthProviderRegistry,
+} from './infrastructure/oauth-providers.js';
 import { RedisLoginAttemptLimiter } from './infrastructure/redis-login-attempt-limiter.js';
 import { OtpAuthTotpService } from './infrastructure/totp.js';
 import { AuthController } from './interface/auth.controller.js';
+import { OAuthController } from './interface/oauth.controller.js';
 
 const signingKeys = (env: Env): SigningKeys => {
   if (env.JWT_PRIVATE_KEY) {
@@ -63,6 +73,23 @@ const signingKeys = (env: Env): SigningKeys => {
     'JWT_PRIVATE_KEY ausente: usando chave efêmera (sessões caem a cada restart).',
   );
   return generateEphemeralKeys();
+};
+
+/** Habilita só os provedores com credenciais configuradas. */
+const oauthProviders = (env: Env): OAuthProviderRegistry => {
+  const callback = (name: string) => `${env.API_PUBLIC_URL}/v1/auth/oauth/${name}/callback`;
+  const providers: OAuthProvider[] = [];
+  if (env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET) {
+    providers.push(
+      new GitHubOAuthProvider(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET, callback('github')),
+    );
+  }
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    providers.push(
+      new GoogleOAuthProvider(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, callback('google')),
+    );
+  }
+  return new Map(providers.map((provider) => [provider.name, provider]));
 };
 
 const USE_CASES = [
@@ -80,6 +107,7 @@ const USE_CASES = [
   CompleteMfaLogin,
   DisableMfa,
   ProvisionAdmin,
+  SignInWithOAuth,
 ] as const;
 
 /**
@@ -88,7 +116,7 @@ const USE_CASES = [
  */
 @Global()
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, OAuthController],
   providers: [
     {
       provide: JoseAccessTokenService,
@@ -97,6 +125,7 @@ const USE_CASES = [
         new JoseAccessTokenService(signingKeys(env), env.ACCESS_TOKEN_TTL_SECONDS),
     },
     { provide: ACCESS_TOKEN_VERIFIER, useExisting: JoseAccessTokenService },
+    { provide: OAUTH_PROVIDERS, inject: [ENV], useFactory: oauthProviders },
     {
       provide: AUTH_COOKIES,
       inject: [ENV],
@@ -136,6 +165,7 @@ const USE_CASES = [
         refreshTokens: new DrizzleRefreshTokenRepository(ctx),
         oneTimeTokens: new DrizzleOneTimeTokenRepository(ctx),
         mfa: new DrizzleMfaRepository(ctx),
+        authIdentities: new DrizzleAuthIdentityRepository(ctx),
         totp: new OtpAuthTotpService(),
         cipher,
         hasher: new Argon2PasswordHasher(),

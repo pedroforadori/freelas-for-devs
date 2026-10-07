@@ -56,6 +56,42 @@ export abstract class IdentityUseCase {
     return token;
   }
 
+  /**
+   * Credencial primária já validada (senha ou provedor externo): abre a sessão — ou, se a conta
+   * tem 2FA, devolve um desafio de curta duração e nenhuma sessão.
+   */
+  protected async signIn(
+    user: User,
+    meta: RequestMeta,
+    auditMetadata: Record<string, unknown>,
+  ): Promise<LoginOutcome> {
+    const { mfa, uow, audit, settings } = this.deps;
+    if ((await mfa.find(user.id))?.enabledAt) {
+      const challengeToken = await uow.run(() =>
+        this.createOneTimeToken(user.id, 'MFA_CHALLENGE', settings.mfaChallengeTtlMs),
+      );
+      return {
+        kind: 'mfa_required',
+        challengeToken,
+        expiresInSeconds: Math.round(settings.mfaChallengeTtlMs / 1000),
+      };
+    }
+
+    const session = await uow.run(async () => {
+      const issued = await this.sessions.start(user, meta);
+      await audit.record({
+        actorId: user.id,
+        action: 'auth.login',
+        targetType: 'user',
+        targetId: user.id,
+        metadata: auditMetadata,
+        request: meta,
+      });
+      return issued;
+    });
+    return { kind: 'authenticated', user, session, mfaEnabled: false };
+  }
+
   protected async sendVerificationEmail(user: User, token: string): Promise<void> {
     const { settings, mailer } = this.deps;
     const url = `${settings.webAppUrl}/verificar-email?token=${token}`;
@@ -117,7 +153,7 @@ export class LoginWithPassword extends IdentityUseCase {
     input: { email: string; password: string },
     meta: RequestMeta,
   ): Promise<LoginOutcome> {
-    const { users, hasher, loginLimiter, audit, uow, mfa, settings } = this.deps;
+    const { users, hasher, loginLimiter, audit } = this.deps;
     const limiterKey = `login:${input.email}`;
 
     const lockedFor = await loginLimiter.lockedFor(limiterKey);
@@ -143,30 +179,7 @@ export class LoginWithPassword extends IdentityUseCase {
     if (!user.isActive) throw new AccountSuspendedError();
 
     await loginLimiter.reset(limiterKey);
-
-    if ((await mfa.find(user.id))?.enabledAt) {
-      const challengeToken = await uow.run(() =>
-        this.createOneTimeToken(user.id, 'MFA_CHALLENGE', settings.mfaChallengeTtlMs),
-      );
-      return {
-        kind: 'mfa_required',
-        challengeToken,
-        expiresInSeconds: Math.round(settings.mfaChallengeTtlMs / 1000),
-      };
-    }
-
-    const session = await uow.run(async () => {
-      const issued = await this.sessions.start(user, meta);
-      await audit.record({
-        actorId: user.id,
-        action: 'auth.login',
-        targetType: 'user',
-        targetId: user.id,
-        request: meta,
-      });
-      return issued;
-    });
-    return { kind: 'authenticated', user, session, mfaEnabled: false };
+    return this.signIn(user, meta, { method: 'password' });
   }
 }
 

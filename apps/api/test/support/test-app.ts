@@ -50,7 +50,7 @@ export interface TestApp {
  */
 export const createTestApp = async (
   env: Record<string, string> = {},
-  options: { controllers?: Type[] } = {},
+  options: { controllers?: Type[]; overrides?: { token: unknown; value: unknown }[] } = {},
 ): Promise<TestApp> => {
   Object.assign(process.env, {
     NODE_ENV: 'test',
@@ -86,7 +86,7 @@ export const createTestApp = async (
     },
   });
 
-  const moduleRef = await Test.createTestingModule({
+  let builder = Test.createTestingModule({
     imports: [AppModule],
     controllers: options.controllers ?? [],
   })
@@ -101,8 +101,11 @@ export const createTestApp = async (
     .overrideProvider(getQueueToken(QueueName.DomainEvents))
     .useValue(new CapturingQueue(QueueName.DomainEvents))
     .overrideProvider(getQueueToken(QueueName.Mail))
-    .useValue(mail)
-    .compile();
+    .useValue(mail);
+  for (const { token, value } of options.overrides ?? []) {
+    builder = builder.overrideProvider(token as string).useValue(value);
+  }
+  const moduleRef = await builder.compile();
 
   const app = await configureHttpApp(
     moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter()),

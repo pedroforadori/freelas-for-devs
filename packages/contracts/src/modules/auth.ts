@@ -135,6 +135,24 @@ export const resetPasswordRequestSchema = z
   .object({ token: oneTimeTokenSchema, password: passwordSchema })
   .strict();
 
+export const oauthProviderSchema = z.enum(['github', 'google']);
+export type OAuthProviderName = z.infer<typeof oauthProviderSchema>;
+
+/** Só caminhos internos do web: impede usar o login como redirecionador aberto. */
+export const internalPathSchema = z
+  .string()
+  .max(512)
+  .regex(/^\/(?![/\\])[\w\-./?=&%#]*$/, { error: 'Destino inválido.' });
+
+/** Códigos de erro do login social, enviados ao web em `/entrar?erro=<código>`. */
+export const OAuthErrorReason = {
+  Cancelled: 'oauth-cancelado',
+  InvalidState: 'oauth-expirado',
+  ProviderFailed: 'oauth-provedor',
+  EmailNotVerified: 'oauth-email-nao-verificado',
+  AccountSuspended: 'conta-suspensa',
+} as const;
+
 export type Me = z.infer<typeof meSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
@@ -275,6 +293,39 @@ export const authRoutes = {
     auth: 'authenticated',
     request: { body: z.object({ code: totpCodeSchema }).strict() },
     responses: { 204: noContent },
+  }),
+  oauthStart: defineRoute({
+    method: 'get',
+    path: '/v1/auth/oauth/{provider}',
+    operationId: 'startOAuth',
+    summary: 'Redireciona para o provedor (GitHub/Google). Navegação de página, não fetch.',
+    tags: ['auth', 'oauth'],
+    auth: 'public',
+    request: {
+      params: z.object({ provider: oauthProviderSchema }),
+      query: z.object({
+        role: selfAssignableRoleSchema.optional().describe('Papel em caso de cadastro novo.'),
+        redirectTo: internalPathSchema.optional(),
+      }),
+    },
+    responses: { 302: noContent },
+  }),
+  oauthCallback: defineRoute({
+    method: 'get',
+    path: '/v1/auth/oauth/{provider}/callback',
+    operationId: 'oauthCallback',
+    summary: 'Retorno do provedor: abre a sessão (ou desafio de 2FA) e redireciona ao web.',
+    tags: ['auth', 'oauth'],
+    auth: 'public',
+    request: {
+      params: z.object({ provider: oauthProviderSchema }),
+      query: z.object({
+        code: z.string().max(2048).optional(),
+        state: z.string().max(256).optional(),
+        error: z.string().max(256).optional(),
+      }),
+    },
+    responses: { 302: noContent },
   }),
   me: defineRoute({
     method: 'get',

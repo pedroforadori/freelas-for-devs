@@ -75,6 +75,35 @@ export interface TotpService {
   matchStep(secret: string, code: string, now: Date): number | null;
 }
 
+export type OAuthProviderName = 'github' | 'google';
+
+/** Dados mínimos obtidos do provedor (minimização de dados — LGPD). */
+export interface OAuthProfile {
+  provider: OAuthProviderName;
+  providerUserId: string;
+  email: string;
+  emailVerified: boolean;
+  displayName: string;
+}
+
+/** Provedor de login social. A troca do código e a leitura do perfil acontecem no servidor. */
+export interface OAuthProvider {
+  readonly name: OAuthProviderName;
+  authorizationUrl(state: string, codeVerifier: string): URL;
+  fetchProfile(code: string, codeVerifier: string): Promise<OAuthProfile>;
+}
+
+export interface AuthIdentityRepository {
+  findUserId(provider: OAuthProviderName, providerUserId: string): Promise<string | null>;
+  link(input: {
+    id: string;
+    userId: string;
+    provider: OAuthProviderName;
+    providerUserId: string;
+    email: string;
+  }): Promise<void>;
+}
+
 export interface PasswordHasher {
   hash(password: string): Promise<string>;
   verify(hash: string, password: string): Promise<boolean>;

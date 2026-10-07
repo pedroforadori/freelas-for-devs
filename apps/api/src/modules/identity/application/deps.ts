@@ -6,6 +6,7 @@ import type { Clock } from '../../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../../shared/kernel/domain-event.js';
 import type {
   AccessTokenIssuer,
+  AuthIdentityRepository,
   IdentitySettings,
   LoginAttemptLimiter,
   MfaRepository,
@@ -23,6 +24,7 @@ export interface IdentityDeps {
   refreshTokens: RefreshTokenRepository;
   oneTimeTokens: OneTimeTokenRepository;
   mfa: MfaRepository;
+  authIdentities: AuthIdentityRepository;
   totp: TotpService;
   cipher: SecretCipher;
   hasher: PasswordHasher;
