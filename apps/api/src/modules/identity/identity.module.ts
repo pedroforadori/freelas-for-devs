@@ -2,6 +2,7 @@ import { Global, Logger, Module } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { AUDIT_LOGGER, type AuditLogger } from '../../shared/application/audit-log.js';
 import { MAILER, type Mailer } from '../../shared/application/mailer.js';
+import { SECRET_CIPHER, type SecretCipher } from '../../shared/application/secret-cipher.js';
 import { ENV } from '../../shared/config/config.module.js';
 import type { Env } from '../../shared/config/env.js';
 import { CLOCK } from '../../shared/infra/core.module.js';
@@ -13,7 +14,14 @@ import { ACCESS_TOKEN_VERIFIER } from '../../shared/interface/http/auth/auth.gua
 import type { Clock } from '../../shared/kernel/clock.js';
 import { DAY_MS, HOUR_MS } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
+import { ProvisionAdmin } from './application/admin-use-cases.js';
 import { IDENTITY_DEPS, type IdentityDeps } from './application/deps.js';
+import {
+  BeginMfaSetup,
+  CompleteMfaLogin,
+  ConfirmMfaSetup,
+  DisableMfa,
+} from './application/mfa-use-cases.js';
 import {
   GetCurrentUser,
   LoginWithPassword,
@@ -37,7 +45,9 @@ import {
   DrizzleRefreshTokenRepository,
   DrizzleUserRepository,
 } from './infrastructure/drizzle-identity.repositories.js';
+import { DrizzleMfaRepository } from './infrastructure/drizzle-mfa.repository.js';
 import { RedisLoginAttemptLimiter } from './infrastructure/redis-login-attempt-limiter.js';
+import { OtpAuthTotpService } from './infrastructure/totp.js';
 import { AuthController } from './interface/auth.controller.js';
 
 const signingKeys = (env: Env): SigningKeys => {
@@ -65,6 +75,11 @@ const USE_CASES = [
   RequestPasswordReset,
   ResetPassword,
   GetCurrentUser,
+  BeginMfaSetup,
+  ConfirmMfaSetup,
+  CompleteMfaLogin,
+  DisableMfa,
+  ProvisionAdmin,
 ] as const;
 
 /**
@@ -104,6 +119,7 @@ const USE_CASES = [
         MAILER,
         REDIS,
         JoseAccessTokenService,
+        SECRET_CIPHER,
       ],
       useFactory: (
         env: Env,
@@ -114,10 +130,14 @@ const USE_CASES = [
         mailer: Mailer,
         redis: Redis,
         accessTokens: JoseAccessTokenService,
+        cipher: SecretCipher,
       ): IdentityDeps => ({
         users: new DrizzleUserRepository(ctx, ids),
         refreshTokens: new DrizzleRefreshTokenRepository(ctx),
         oneTimeTokens: new DrizzleOneTimeTokenRepository(ctx),
+        mfa: new DrizzleMfaRepository(ctx),
+        totp: new OtpAuthTotpService(),
+        cipher,
         hasher: new Argon2PasswordHasher(),
         accessTokens,
         secrets: new Sha256SecretTokenGenerator(),
@@ -131,6 +151,7 @@ const USE_CASES = [
           refreshTokenTtlMs: env.REFRESH_TOKEN_TTL_DAYS * DAY_MS,
           emailVerificationTtlMs: 24 * HOUR_MS,
           passwordResetTtlMs: HOUR_MS,
+          mfaChallengeTtlMs: 5 * 60_000,
           webAppUrl: env.WEB_APP_URL,
         },
       }),

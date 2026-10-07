@@ -16,7 +16,10 @@ import type { IdentityDeps } from '../application/deps.js';
 import { RegisterUser, RequestPasswordReset, ResetPassword } from '../application/use-cases.js';
 import { EmailAlreadyRegisteredError, WeakPasswordError } from '../domain/errors.js';
 import { User } from '../domain/user.js';
+import { AesGcmCipher, developmentCipherKey } from '../../../shared/infra/crypto/aes-gcm.cipher.js';
 import { Sha256SecretTokenGenerator } from './crypto.js';
+import { DrizzleMfaRepository } from './drizzle-mfa.repository.js';
+import { OtpAuthTotpService } from './totp.js';
 import {
   DrizzleOneTimeTokenRepository,
   DrizzleRefreshTokenRepository,
@@ -47,6 +50,9 @@ beforeEach(async () => {
     users: new DrizzleUserRepository(ctx, ids),
     refreshTokens: new DrizzleRefreshTokenRepository(ctx),
     oneTimeTokens: new DrizzleOneTimeTokenRepository(ctx),
+    mfa: new DrizzleMfaRepository(ctx),
+    totp: new OtpAuthTotpService(),
+    cipher: new AesGcmCipher(developmentCipherKey()),
     hasher: new FakeHasher(),
     accessTokens: new FakeAccessTokens(),
     secrets: new Sha256SecretTokenGenerator(),
@@ -60,6 +66,7 @@ beforeEach(async () => {
       refreshTokenTtlMs: 30 * DAY_MS,
       emailVerificationTtlMs: 24 * HOUR_MS,
       passwordResetTtlMs: HOUR_MS,
+      mfaChallengeTtlMs: 5 * 60_000,
       webAppUrl: 'https://app.test',
     },
   };

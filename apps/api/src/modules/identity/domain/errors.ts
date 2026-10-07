@@ -60,3 +60,39 @@ export class TooManyAttemptsError extends DomainError {
     super('Muitas tentativas. Aguarde alguns minutos e tente novamente.', { retryAfterSeconds });
   }
 }
+
+export class InvalidMfaCodeError extends DomainError {
+  readonly code = 'VALIDATION_FAILED';
+  constructor() {
+    super('Código inválido ou já utilizado. Confira o app autenticador e tente de novo.');
+  }
+}
+
+export class MfaAlreadyEnabledError extends DomainError {
+  readonly code = 'CONFLICT';
+  constructor() {
+    super('A verificação em duas etapas já está ativa.');
+  }
+}
+
+export class MfaNotEnabledError extends DomainError {
+  readonly code = 'CONFLICT';
+  constructor() {
+    super('A verificação em duas etapas não está ativa.');
+  }
+}
+
+/** Ação sensível que exige sessão confirmada com segundo fator. */
+export class StepUpRequiredError extends DomainError {
+  readonly code = 'MFA_REQUIRED';
+  constructor() {
+    super('Confirme com o segundo fator para continuar.');
+  }
+}
+
+export class MfaMandatoryError extends DomainError {
+  readonly code = 'FORBIDDEN';
+  constructor() {
+    super('A verificação em duas etapas é obrigatória para administradores.');
+  }
+}

@@ -4,6 +4,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -62,6 +63,8 @@ export const refreshTokens = pgTable(
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     rotatedAt: timestamp({ withTimezone: true }),
     revokedAt: timestamp({ withTimezone: true }),
+    /** Nível de autenticação da sessão (1 = senha, 2 = com segundo fator); preservado ao rotacionar. */
+    aal: smallint().notNull().default(1),
     userAgent: text(),
     ip: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -83,7 +86,7 @@ export const oneTimeTokens = pgTable(
     userId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    purpose: text().$type<'EMAIL_VERIFICATION' | 'PASSWORD_RESET'>().notNull(),
+    purpose: text().$type<'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'MFA_CHALLENGE'>().notNull(),
     tokenHash: text().notNull(),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     consumedAt: timestamp({ withTimezone: true }),
@@ -92,6 +95,39 @@ export const oneTimeTokens = pgTable(
   (table) => [
     uniqueIndex('one_time_tokens_hash_key').on(table.tokenHash),
     index('one_time_tokens_user_purpose_idx').on(table.userId, table.purpose),
+  ],
+);
+
+/**
+ * Segundo fator TOTP. O segredo é cifrado (AES-256-GCM) com a chave de campo da aplicação:
+ * um dump do banco sozinho não permite gerar códigos.
+ */
+export const userMfa = pgTable('user_mfa', {
+  userId: uuid()
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  secretEnc: text().notNull(),
+  /** Nulo enquanto a configuração não foi confirmada com um código válido. */
+  enabledAt: timestamp({ withTimezone: true }),
+  /** Último passo TOTP aceito: impede reutilizar o mesmo código (replay). */
+  lastUsedStep: integer(),
+  ...timestamps,
+});
+
+export const mfaRecoveryCodes = pgTable(
+  'mfa_recovery_codes',
+  {
+    id: uuid().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text().notNull(),
+    usedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('mfa_recovery_codes_user_idx').on(table.userId),
+    uniqueIndex('mfa_recovery_codes_hash_key').on(table.codeHash),
   ],
 );
 

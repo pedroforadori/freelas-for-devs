@@ -4,7 +4,10 @@ import {
   apiRoutes,
   type AuthResponse,
   CLIENT_KIND_HEADER,
+  type LoginResponse,
   type Me,
+  type MfaEnableResponse,
+  type MfaSetupResponse,
   MOBILE_CLIENT,
 } from '@f4d/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -35,20 +38,27 @@ import {
   ResetPassword,
   VerifyEmail,
 } from '../application/use-cases.js';
+import {
+  BeginMfaSetup,
+  CompleteMfaLogin,
+  ConfirmMfaSetup,
+  DisableMfa,
+} from '../application/mfa-use-cases.js';
 import { InvalidSessionError } from '../domain/errors.js';
 import type { User } from '../domain/user.js';
 
 const routes = apiRoutes.auth;
 const MINUTE = 60_000;
 
-export const toMe = (user: User): Me => ({
+export const toMe = (user: User, session: { mfaEnabled: boolean; sessionAal: 1 | 2 }): Me => ({
   id: user.id,
   email: user.email,
   displayName: user.displayName,
   emailVerified: user.isEmailVerified,
   roles: [...user.roles],
   permissions: user.permissions,
-  mfaEnabled: false,
+  mfaEnabled: session.mfaEnabled,
+  sessionAal: session.sessionAal,
   createdAt: user.createdAt.toISOString(),
 });
 
@@ -70,6 +80,10 @@ export class AuthController {
     private readonly requestPasswordReset: RequestPasswordReset,
     private readonly resetPasswordUseCase: ResetPassword,
     private readonly getCurrentUser: GetCurrentUser,
+    private readonly beginMfaSetup: BeginMfaSetup,
+    private readonly confirmMfaSetup: ConfirmMfaSetup,
+    private readonly completeMfaLogin: CompleteMfaLogin,
+    private readonly disableMfa: DisableMfa,
     @Inject(AUTH_COOKIES) private readonly cookies: AuthCookies,
   ) {}
 
@@ -97,8 +111,17 @@ export class AuthController {
     @RequestContext() meta: RequestMeta,
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<AuthResponse> {
-    return this.respond(req, reply, await this.loginWithPassword.execute(body, meta));
+  ): Promise<LoginResponse> {
+    const outcome = await this.loginWithPassword.execute(body, meta);
+    if (outcome.kind === 'mfa_required') {
+      // Nenhum cookie de sessão ainda: só o desafio, que expira em minutos.
+      return {
+        status: 'mfa_required',
+        challengeToken: outcome.challengeToken,
+        expiresInSeconds: outcome.expiresInSeconds,
+      };
+    }
+    return this.respond(req, reply, outcome);
   }
 
   @Throttle({ default: { limit: 30, ttl: MINUTE } })
@@ -169,17 +192,66 @@ export class AuthController {
 
   @ContractRoute(routes.me)
   async me(@CurrentPrincipal() principal: Principal): Promise<Me> {
-    return toMe(await this.getCurrentUser.execute(principal.userId));
+    const { user, mfaEnabled } = await this.getCurrentUser.execute(principal.userId);
+    return toMe(user, { mfaEnabled, sessionAal: principal.aal });
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 15 * MINUTE } })
+  @ContractRoute(routes.mfaSetup)
+  async mfaSetup(@CurrentPrincipal() principal: Principal): Promise<MfaSetupResponse> {
+    return this.beginMfaSetup.execute(principal.userId);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 15 * MINUTE } })
+  @ContractRoute(routes.mfaEnable)
+  async mfaEnable(
+    @ValidRequest() { body }: ContractRequest<typeof routes.mfaEnable>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<MfaEnableResponse> {
+    const result = await this.confirmMfaSetup.execute(principal, body.code, meta);
+    return { ...this.respond(req, reply, result), recoveryCodes: result.recoveryCodes };
+  }
+
+  @Throttle({ default: { limit: 10, ttl: MINUTE } })
+  @ContractRoute(routes.mfaVerify)
+  async mfaVerify(
+    @ValidRequest() { body }: ContractRequest<typeof routes.mfaVerify>,
+    @RequestContext() meta: RequestMeta,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<AuthResponse> {
+    return this.respond(req, reply, await this.completeMfaLogin.execute(body, meta));
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 15 * MINUTE } })
+  @ContractRoute(routes.mfaDisable)
+  async mfaDisable(
+    @ValidRequest() { body }: ContractRequest<typeof routes.mfaDisable>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+  ): Promise<void> {
+    await this.disableMfa.execute(principal, body.code, meta);
   }
 
   /** Web: tokens só em cookies httpOnly (+ CSRF rotacionado). Mobile: tokens no corpo. */
   private respond(req: FastifyRequest, reply: FastifyReply, result: AuthResult): AuthResponse {
-    const user = toMe(result.user);
+    const user = toMe(result.user, {
+      mfaEnabled: result.mfaEnabled,
+      sessionAal: result.session.aal,
+    });
     const { accessToken, refreshToken, accessTokenExpiresIn } = result.session;
-    if (isMobile(req))
-      return { user, session: { accessToken, refreshToken, accessTokenExpiresIn } };
+    if (isMobile(req)) {
+      return {
+        status: 'authenticated',
+        user,
+        session: { accessToken, refreshToken, accessTokenExpiresIn },
+      };
+    }
     this.cookies.setSession(reply, { accessToken, refreshToken });
     this.cookies.issueCsrf(reply);
-    return { user };
+    return { status: 'authenticated', user };
   }
 }

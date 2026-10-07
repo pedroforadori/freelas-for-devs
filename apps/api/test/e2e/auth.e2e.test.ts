@@ -39,7 +39,14 @@ describe('web session (cookies + CSRF)', () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.json()).toEqual({
-      user: expect.objectContaining({ email, roles: ['FREELANCER'], emailVerified: false }),
+      status: 'authenticated',
+      user: expect.objectContaining({
+        email,
+        roles: ['FREELANCER'],
+        emailVerified: false,
+        mfaEnabled: false,
+        sessionAal: 1,
+      }),
     });
     expect(JSON.stringify(res.json())).not.toContain('accessToken');
 

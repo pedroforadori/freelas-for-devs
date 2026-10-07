@@ -36,6 +36,8 @@ export const meSchema = z
     roles: z.array(roleSchema),
     permissions: z.array(permissionSchema),
     mfaEnabled: z.boolean(),
+    /** Nível da sessão atual: 2 quando confirmada com segundo fator (exigido em ações de Admin). */
+    sessionAal: z.union([z.literal(1), z.literal(2)]),
     createdAt: z.iso.datetime(),
   })
   .meta({ id: 'Me' });
@@ -52,8 +54,57 @@ export const sessionTokensSchema = z
   });
 
 export const authResponseSchema = z
-  .object({ user: meSchema, session: sessionTokensSchema.optional() })
+  .object({
+    status: z.literal('authenticated'),
+    user: meSchema,
+    session: sessionTokensSchema.optional(),
+  })
   .meta({ id: 'AuthResponse' });
+
+export const mfaChallengeResponseSchema = z
+  .object({
+    status: z.literal('mfa_required'),
+    challengeToken: z.string(),
+    expiresInSeconds: z.number().int(),
+  })
+  .meta({
+    id: 'MfaChallengeResponse',
+    description: 'Senha correta; conclua em POST /v1/auth/mfa/verify com o código do app.',
+  });
+
+export const loginResponseSchema = z
+  .discriminatedUnion('status', [authResponseSchema, mfaChallengeResponseSchema])
+  .meta({ id: 'LoginResponse' });
+
+export const totpCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, { error: 'Informe os 6 dígitos do app.' });
+
+export const mfaSetupResponseSchema = z
+  .object({
+    secret: z.string().describe('Para digitar manualmente no app, se não der para ler o QR code.'),
+    otpauthUrl: z.string().describe('Conteúdo do QR code.'),
+  })
+  .meta({ id: 'MfaSetupResponse' });
+
+export const mfaEnableResponseSchema = authResponseSchema
+  .extend({
+    recoveryCodes: z.array(z.string()).describe('Exibidos uma única vez. Guarde em local seguro.'),
+  })
+  .meta({ id: 'MfaEnableResponse' });
+
+export const mfaVerifyRequestSchema = z
+  .object({
+    challengeToken: z.string().max(100),
+    code: totpCodeSchema.optional(),
+    recoveryCode: z.string().trim().max(20).optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.code) !== Boolean(value.recoveryCode), {
+    error: 'Informe o código do app ou um código de recuperação.',
+    path: ['code'],
+  });
 
 export const registerRequestSchema = z
   .object({
@@ -86,6 +137,9 @@ export const resetPasswordRequestSchema = z
 
 export type Me = z.infer<typeof meSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
+export type MfaSetupResponse = z.infer<typeof mfaSetupResponseSchema>;
+export type MfaEnableResponse = z.infer<typeof mfaEnableResponseSchema>;
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 export type LoginRequest = z.infer<typeof loginRequestSchema>;
 
@@ -120,7 +174,7 @@ export const authRoutes = {
     tags,
     auth: 'public',
     request: { body: loginRequestSchema },
-    responses: { 200: authResponseSchema },
+    responses: { 200: loginResponseSchema },
   }),
   refresh: defineRoute({
     method: 'post',
@@ -180,6 +234,46 @@ export const authRoutes = {
     tags,
     auth: 'public',
     request: { body: resetPasswordRequestSchema },
+    responses: { 204: noContent },
+  }),
+  mfaSetup: defineRoute({
+    method: 'post',
+    path: '/v1/auth/mfa/setup',
+    operationId: 'beginMfaSetup',
+    summary: 'Gera o segredo TOTP (ainda inativo) e o conteúdo do QR code.',
+    tags: ['auth', 'mfa'],
+    auth: 'authenticated',
+    request: {},
+    responses: { 200: mfaSetupResponseSchema },
+  }),
+  mfaEnable: defineRoute({
+    method: 'post',
+    path: '/v1/auth/mfa/enable',
+    operationId: 'confirmMfaSetup',
+    summary: 'Ativa o 2FA com um código do app; devolve códigos de recuperação e sessão nível 2.',
+    tags: ['auth', 'mfa'],
+    auth: 'authenticated',
+    request: { body: z.object({ code: totpCodeSchema }).strict() },
+    responses: { 200: mfaEnableResponseSchema },
+  }),
+  mfaVerify: defineRoute({
+    method: 'post',
+    path: '/v1/auth/mfa/verify',
+    operationId: 'completeMfaLogin',
+    summary: 'Conclui o login com o código do app ou um código de recuperação.',
+    tags: ['auth', 'mfa'],
+    auth: 'public',
+    request: { body: mfaVerifyRequestSchema },
+    responses: { 200: authResponseSchema },
+  }),
+  mfaDisable: defineRoute({
+    method: 'post',
+    path: '/v1/auth/mfa/disable',
+    operationId: 'disableMfa',
+    summary: 'Desativa o 2FA (indisponível para administradores). Exige sessão nível 2.',
+    tags: ['auth', 'mfa'],
+    auth: 'authenticated',
+    request: { body: z.object({ code: totpCodeSchema }).strict() },
     responses: { 204: noContent },
   }),
   me: defineRoute({

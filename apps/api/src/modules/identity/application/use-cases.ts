@@ -21,10 +21,20 @@ import { type IssuedSession, SessionIssuer } from './session-issuer.js';
 export interface AuthResult {
   user: User;
   session: IssuedSession;
+  mfaEnabled: boolean;
 }
 
+/** Senha correta, mas a conta exige o segundo fator: a sessão só sai após o código. */
+export interface MfaChallenge {
+  challengeToken: string;
+  expiresInSeconds: number;
+}
+
+export type LoginOutcome =
+  ({ kind: 'authenticated' } & AuthResult) | ({ kind: 'mfa_required' } & MfaChallenge);
+
 /** Base comum: acesso às deps, emissão de sessão e tokens de uso único. */
-abstract class IdentityUseCase {
+export abstract class IdentityUseCase {
   protected readonly sessions: SessionIssuer;
 
   constructor(protected readonly deps: IdentityDeps) {
@@ -98,7 +108,7 @@ export class RegisterUser extends IdentityUseCase {
     });
 
     await this.sendVerificationEmail(user, verificationToken);
-    return { user, session };
+    return { user, session, mfaEnabled: false };
   }
 }
 
@@ -106,8 +116,8 @@ export class LoginWithPassword extends IdentityUseCase {
   async execute(
     input: { email: string; password: string },
     meta: RequestMeta,
-  ): Promise<AuthResult> {
-    const { users, hasher, loginLimiter, audit, uow } = this.deps;
+  ): Promise<LoginOutcome> {
+    const { users, hasher, loginLimiter, audit, uow, mfa, settings } = this.deps;
     const limiterKey = `login:${input.email}`;
 
     const lockedFor = await loginLimiter.lockedFor(limiterKey);
@@ -133,6 +143,18 @@ export class LoginWithPassword extends IdentityUseCase {
     if (!user.isActive) throw new AccountSuspendedError();
 
     await loginLimiter.reset(limiterKey);
+
+    if ((await mfa.find(user.id))?.enabledAt) {
+      const challengeToken = await uow.run(() =>
+        this.createOneTimeToken(user.id, 'MFA_CHALLENGE', settings.mfaChallengeTtlMs),
+      );
+      return {
+        kind: 'mfa_required',
+        challengeToken,
+        expiresInSeconds: Math.round(settings.mfaChallengeTtlMs / 1000),
+      };
+    }
+
     const session = await uow.run(async () => {
       const issued = await this.sessions.start(user, meta);
       await audit.record({
@@ -144,7 +166,7 @@ export class LoginWithPassword extends IdentityUseCase {
       });
       return issued;
     });
-    return { user, session };
+    return { kind: 'authenticated', user, session, mfaEnabled: false };
   }
 }
 
@@ -187,7 +209,11 @@ export class RefreshSession extends IdentityUseCase {
         await refreshTokens.revokeFamily(record.familyId, now);
         throw new InvalidSessionError('user-inactive');
       }
-      return { user, session: await this.sessions.start(user, meta, record.familyId) };
+      const session = await this.sessions.start(user, meta, {
+        familyId: record.familyId,
+        aal: record.aal,
+      });
+      return { user, session, mfaEnabled: Boolean((await this.deps.mfa.find(user.id))?.enabledAt) };
     });
   }
 }
@@ -304,9 +330,9 @@ export class ResetPassword extends IdentityUseCase {
 }
 
 export class GetCurrentUser extends IdentityUseCase {
-  async execute(userId: string): Promise<User> {
+  async execute(userId: string): Promise<{ user: User; mfaEnabled: boolean }> {
     const user = await this.deps.users.findById(userId);
     if (!user?.isActive) throw new InvalidSessionError('user-inactive');
-    return user;
+    return { user, mfaEnabled: Boolean((await this.deps.mfa.find(user.id))?.enabledAt) };
   }
 }

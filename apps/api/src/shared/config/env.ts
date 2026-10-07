@@ -64,6 +64,25 @@ export const envSchema = z
     /** Domínio pai para o cookie CSRF ser legível pelo web (ex.: `.freelas4devs.com.br`). */
     COOKIE_DOMAIN: z.string().optional(),
 
+    /** AES-256 (32 bytes em base64) para campos sensíveis em repouso. `openssl rand -base64 32` */
+    FIELD_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => Buffer.from(value, 'base64').length === 32, {
+        message: 'deve ter 32 bytes em base64',
+      })
+      .optional(),
+    FIELD_ENCRYPTION_KEY_ID: z
+      .string()
+      .regex(/^[\w-]{1,16}$/)
+      .default('k1'),
+    /** Chaves anteriores ainda usadas para decifrar: `k0:<base64>,k-1:<base64>`. */
+    FIELD_ENCRYPTION_PREVIOUS_KEYS: csv.default([]).transform((items) =>
+      items.map((item) => {
+        const [id = '', key = ''] = item.split(':');
+        return { id, key };
+      }),
+    ),
+
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
@@ -76,6 +95,12 @@ export const envSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['JWT_PRIVATE_KEY'],
+        message: 'obrigatório em produção',
+      });
+    if (!env.FIELD_ENCRYPTION_KEY)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FIELD_ENCRYPTION_KEY'],
         message: 'obrigatório em produção',
       });
     if (!env.COOKIE_SECURE)

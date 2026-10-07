@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
 import type { PasswordHasher, SecretTokenGenerator } from '../application/ports.js';
 
@@ -38,5 +38,13 @@ export class Sha256SecretTokenGenerator implements SecretTokenGenerator {
 
   hash(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  /** 10 caracteres de um alfabeto sem ambíguos (sem 0/o, 1/l/i): ~50 bits. */
+  readableCode(): string {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+    // randomInt faz amostragem uniforme (sem o viés de `byte % 31`).
+    const chars = Array.from({ length: 10 }, () => alphabet[randomInt(alphabet.length)]);
+    return `${chars.slice(0, 5).join('')}-${chars.slice(5).join('')}`;
   }
 }

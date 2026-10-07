@@ -7,15 +7,22 @@ export interface IssuedSession {
   accessToken: string;
   accessTokenExpiresIn: number;
   refreshToken: string;
+  /** 1 = senha/OAuth; 2 = confirmada com segundo fator. */
+  aal: 1 | 2;
 }
 
 /** Cria um refresh token (novo ou na mesma família, ao rotacionar) e o access token correspondente. */
 export class SessionIssuer {
   constructor(private readonly deps: IdentityDeps) {}
 
-  async start(user: User, meta: RequestMeta, familyId?: string): Promise<IssuedSession> {
+  async start(
+    user: User,
+    meta: RequestMeta,
+    options: { familyId?: string; aal?: 1 | 2 } = {},
+  ): Promise<IssuedSession> {
     const { ids, clock, secrets, refreshTokens, accessTokens, settings } = this.deps;
-    const sessionId = familyId ?? ids.next();
+    const sessionId = options.familyId ?? ids.next();
+    const aal = options.aal ?? 1;
     const now = clock.now();
     const { token, hash } = secrets.generate();
 
@@ -27,6 +34,7 @@ export class SessionIssuer {
       expiresAt: new Date(now.getTime() + settings.refreshTokenTtlMs),
       rotatedAt: null,
       revokedAt: null,
+      aal,
       userAgent: meta.userAgent?.slice(0, 512) ?? null,
       ip: meta.ip,
     });
@@ -35,7 +43,7 @@ export class SessionIssuer {
       userId: user.id,
       roles: [...user.roles],
       sessionId,
-      aal: 1,
+      aal,
     });
 
     return {
@@ -43,6 +51,7 @@ export class SessionIssuer {
       accessToken: access.token,
       accessTokenExpiresIn: access.expiresInSeconds,
       refreshToken: token,
+      aal,
     };
   }
 }

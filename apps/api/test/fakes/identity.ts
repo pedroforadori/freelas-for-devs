@@ -1,4 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { Secret, TOTP } from 'otpauth';
+import {
+  AesGcmCipher,
+  developmentCipherKey,
+} from '../../src/shared/infra/crypto/aes-gcm.cipher.js';
+import { OtpAuthTotpService } from '../../src/modules/identity/infrastructure/totp.js';
 import type { AuditEntry, AuditLogger } from '../../src/shared/application/audit-log.js';
 import type { EmailMessage, Mailer } from '../../src/shared/application/mailer.js';
 import type { UnitOfWork } from '../../src/shared/application/unit-of-work.js';
@@ -10,6 +16,8 @@ import type {
   AccessTokenClaims,
   AccessTokenIssuer,
   LoginAttemptLimiter,
+  MfaRecord,
+  MfaRepository,
   OneTimeTokenPurpose,
   OneTimeTokenRepository,
   PasswordHasher,
@@ -96,6 +104,13 @@ export class InMemoryOneTimeTokens implements OneTimeTokenRepository {
     this.rows.push({ ...record, consumedAt: null });
     return Promise.resolve();
   }
+  findValid(tokenHash: string, purpose: OneTimeTokenPurpose, now: Date) {
+    const row = this.rows.find(
+      (r) =>
+        r.tokenHash === tokenHash && r.purpose === purpose && !r.consumedAt && r.expiresAt > now,
+    );
+    return Promise.resolve(row ? { id: row.id, userId: row.userId } : null);
+  }
   consume(tokenHash: string, purpose: OneTimeTokenPurpose, now: Date) {
     const row = this.rows.find(
       (r) =>
@@ -145,6 +160,61 @@ export class RealSecrets implements SecretTokenGenerator {
   }
   hash(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+  readableCode() {
+    const raw = randomBytes(8).toString('hex');
+    return `${raw.slice(0, 5)}-${raw.slice(5, 10)}`;
+  }
+}
+
+export class InMemoryMfa implements MfaRepository {
+  readonly records = new Map<string, MfaRecord>();
+  readonly recoveryCodes: { id: string; userId: string; codeHash: string; usedAt: Date | null }[] =
+    [];
+
+  find(userId: string) {
+    const record = this.records.get(userId);
+    return Promise.resolve(record ? { ...record } : null);
+  }
+  savePending(userId: string, secretEnc: string) {
+    if (!this.records.get(userId)?.enabledAt) {
+      this.records.set(userId, { userId, secretEnc, enabledAt: null, lastUsedStep: null });
+    }
+    return Promise.resolve();
+  }
+  enable(userId: string, now: Date, step: number) {
+    const record = this.records.get(userId);
+    if (record && !record.enabledAt) Object.assign(record, { enabledAt: now, lastUsedStep: step });
+    return Promise.resolve();
+  }
+  claimStep(userId: string, step: number) {
+    const record = this.records.get(userId);
+    if (!record || (record.lastUsedStep !== null && record.lastUsedStep >= step))
+      return Promise.resolve(false);
+    record.lastUsedStep = step;
+    return Promise.resolve(true);
+  }
+  remove(userId: string) {
+    this.records.delete(userId);
+    this.dropRecoveryCodes(userId);
+    return Promise.resolve();
+  }
+  replaceRecoveryCodes(userId: string, codes: { id: string; codeHash: string }[]) {
+    this.dropRecoveryCodes(userId);
+    this.recoveryCodes.push(...codes.map((c) => ({ ...c, userId, usedAt: null })));
+    return Promise.resolve();
+  }
+  private dropRecoveryCodes(userId: string) {
+    const kept = this.recoveryCodes.filter((c) => c.userId !== userId);
+    this.recoveryCodes.splice(0, this.recoveryCodes.length, ...kept);
+  }
+  consumeRecoveryCode(userId: string, codeHash: string, now: Date) {
+    const code = this.recoveryCodes.find(
+      (c) => c.userId === userId && c.codeHash === codeHash && !c.usedAt,
+    );
+    if (!code) return Promise.resolve(false);
+    code.usedAt = now;
+    return Promise.resolve(true);
   }
 }
 
@@ -198,6 +268,9 @@ export const createIdentityTestDeps = () => {
     users: new InMemoryUsers(),
     refreshTokens: new InMemoryRefreshTokens(),
     oneTimeTokens: new InMemoryOneTimeTokens(),
+    mfa: new InMemoryMfa(),
+    totp: new OtpAuthTotpService(),
+    cipher: new AesGcmCipher(developmentCipherKey()),
     hasher: new FakeHasher(),
     accessTokens: new FakeAccessTokens(),
     secrets: new RealSecrets(),
@@ -211,8 +284,20 @@ export const createIdentityTestDeps = () => {
       refreshTokenTtlMs: 30 * DAY_MS,
       emailVerificationTtlMs: 24 * HOUR_MS,
       passwordResetTtlMs: HOUR_MS,
+      mfaChallengeTtlMs: 5 * 60_000,
       webAppUrl: 'https://app.test',
     },
   } satisfies IdentityDeps;
   return deps;
 };
+
+/** Gera o código TOTP que um app autenticador mostraria para o segredo no instante dado. */
+export const totpCodeAt = (secret: string, at: Date): string =>
+  new TOTP({
+    secret: Secret.fromBase32(secret),
+    digits: 6,
+    period: 30,
+    algorithm: 'SHA1',
+  }).generate({
+    timestamp: at.getTime(),
+  });

@@ -33,8 +33,14 @@ const credentials = {
 
 let deps: ReturnType<typeof createIdentityTestDeps>;
 const register = () => new RegisterUser(deps).execute({ ...credentials, role: 'CLIENT' }, meta);
-const login = (password = credentials.password) =>
-  new LoginWithPassword(deps).execute({ email: credentials.email, password }, meta);
+const login = async (password = credentials.password) => {
+  const outcome = await new LoginWithPassword(deps).execute(
+    { email: credentials.email, password },
+    meta,
+  );
+  if (outcome.kind !== 'authenticated') throw new Error('esperava login sem 2FA');
+  return outcome;
+};
 
 beforeEach(() => {
   deps = createIdentityTestDeps();
@@ -169,7 +175,7 @@ describe('VerifyEmail', () => {
     const token = deps.mailer.lastToken(user.email, 'auth.verify-email');
 
     await new VerifyEmail(deps).execute(token, meta);
-    expect((await new GetCurrentUser(deps).execute(user.id)).isEmailVerified).toBe(true);
+    expect((await new GetCurrentUser(deps).execute(user.id)).user.isEmailVerified).toBe(true);
     await expect(new VerifyEmail(deps).execute(token, meta)).rejects.toBeInstanceOf(
       InvalidOneTimeTokenError,
     );

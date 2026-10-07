@@ -47,6 +47,8 @@ pnpm --filter @f4d/api dev:worker      # worker (relay do outbox) em outro termi
 | `pnpm format`                                | Prettier em todo o repositório                                  |
 | `pnpm db:generate`                           | Gera migração SQL a partir de `apps/api/src/db/schema`          |
 | `pnpm db:migrate`                            | Aplica migrações pendentes                                      |
+| `pnpm --filter @f4d/api keys:generate`       | Gera o par de chaves JWT (Ed25519) para o `.env`                |
+| `pnpm --filter @f4d/api admin:provision`     | Cria/promove um Admin (`--email` e `--name`); não há rota HTTP  |
 
 ## Convenções
 

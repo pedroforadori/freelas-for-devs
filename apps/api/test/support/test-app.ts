@@ -1,4 +1,5 @@
 import { getQueueToken } from '@nestjs/bullmq';
+import type { Type } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import type { Redis } from 'ioredis';
@@ -47,7 +48,10 @@ export interface TestApp {
  * Aplicação HTTP real (guards, filtros, cookies, rate limit) com dependências em processo:
  * Postgres = PGlite, Redis = ioredis-mock, filas BullMQ = captura em memória. Roda sem Docker.
  */
-export const createTestApp = async (env: Record<string, string> = {}): Promise<TestApp> => {
+export const createTestApp = async (
+  env: Record<string, string> = {},
+  options: { controllers?: Type[] } = {},
+): Promise<TestApp> => {
   Object.assign(process.env, {
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
@@ -82,7 +86,10 @@ export const createTestApp = async (env: Record<string, string> = {}): Promise<T
     },
   });
 
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+    controllers: options.controllers ?? [],
+  })
     .overrideProvider(CLOCK)
     .useValue(clock)
     .overrideProvider(PG_POOL)

@@ -112,7 +112,7 @@ export class DrizzleRefreshTokenRepository implements RefreshTokenRepository {
       .from(refreshTokens)
       .where(eq(refreshTokens.tokenHash, tokenHash))
       .limit(1);
-    return row ?? null;
+    return row ? { ...row, aal: row.aal === 2 ? 2 : 1 } : null;
   }
 
   async markRotated(id: string, now: Date): Promise<boolean> {
@@ -156,6 +156,26 @@ export class DrizzleOneTimeTokenRepository implements OneTimeTokenRepository {
     expiresAt: Date;
   }): Promise<void> {
     await this.ctx.executor.insert(oneTimeTokens).values(record);
+  }
+
+  async findValid(
+    tokenHash: string,
+    purpose: OneTimeTokenPurpose,
+    now: Date,
+  ): Promise<{ id: string; userId: string } | null> {
+    const [row] = await this.ctx.executor
+      .select({ id: oneTimeTokens.id, userId: oneTimeTokens.userId })
+      .from(oneTimeTokens)
+      .where(
+        and(
+          eq(oneTimeTokens.tokenHash, tokenHash),
+          eq(oneTimeTokens.purpose, purpose),
+          isNull(oneTimeTokens.consumedAt),
+          gt(oneTimeTokens.expiresAt, now),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
   }
 
   /** UPDATE condicional + RETURNING: dois cliques simultâneos no link não consomem duas vezes. */

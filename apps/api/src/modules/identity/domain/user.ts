@@ -20,6 +20,7 @@ export const UserEvents = {
   Registered: 'identity.UserRegistered',
   EmailVerified: 'identity.UserEmailVerified',
   PasswordChanged: 'identity.UserPasswordChanged',
+  RoleGranted: 'identity.UserRoleGranted',
 } as const;
 
 /** Agregado de identidade: credenciais, papéis e situação da conta. Perfis vivem em outro módulo. */
@@ -61,6 +62,37 @@ export class User extends AggregateRoot {
     return user;
   }
 
+  /**
+   * Conta criada por um operador (ex.: Admin via CLI): sem senha, com e-mail já confirmado.
+   * A pessoa define a senha pelo link de redefinição enviado na criação.
+   */
+  static provision(input: {
+    id: string;
+    email: string;
+    displayName: string;
+    roles: Role[];
+    now: Date;
+  }): User {
+    const user = new User(
+      {
+        email: input.email.trim().toLowerCase(),
+        passwordHash: null,
+        displayName: input.displayName.trim(),
+        status: 'ACTIVE',
+        emailVerifiedAt: input.now,
+        termsAcceptedAt: input.now,
+        roles: [...new Set(input.roles)],
+        createdAt: input.now,
+      },
+      input.id,
+      0,
+    );
+    for (const role of user.props.roles) {
+      user.record(UserEvents.RoleGranted, input.now, { userId: input.id, role });
+    }
+    return user;
+  }
+
   static rehydrate(snapshot: UserSnapshot): User {
     const { id, version, ...props } = snapshot;
     return new User({ ...props, roles: [...props.roles] }, id, version);
@@ -93,6 +125,12 @@ export class User extends AggregateRoot {
 
   hasRole(role: Role): boolean {
     return this.props.roles.includes(role);
+  }
+
+  grantRole(role: Role, now: Date): void {
+    if (this.hasRole(role)) return;
+    this.props.roles = [...this.props.roles, role].sort();
+    this.record(UserEvents.RoleGranted, now, { userId: this.id, role });
   }
 
   verifyEmail(now: Date): void {
