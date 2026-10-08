@@ -6,5 +6,6 @@ export * from './modules/auth.js';
 export * from './modules/catalog.js';
 export * from './modules/files.js';
 export * from './modules/health.js';
+export * from './modules/leads.js';
 export * from './modules/profiles.js';
 export * from './routes.js';

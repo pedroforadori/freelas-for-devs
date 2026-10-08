@@ -11,7 +11,7 @@ export type ButtonVariant = keyof typeof variants;
 
 export const buttonClasses = (variant: ButtonVariant = 'primary', className?: string): string =>
   cn(
-    'inline-flex h-[68px] items-center justify-center rounded-button px-9 text-body font-normal transition',
+    'inline-flex h-[68px] items-center justify-center rounded-button px-[35px] text-lead font-normal transition',
     'disabled:pointer-events-none disabled:opacity-50',
     variants[variant],
     className,

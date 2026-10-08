@@ -1,4 +1,18 @@
-import { buttonClasses } from '@f4d/ui/components/button';
+import { UtmPropagation } from '@/components/utm-propagation';
+import {
+  CtaBanner,
+  Differentials,
+  Faq,
+  FirstProject,
+  Hero,
+  HowItWorks,
+  ProjectTypes,
+  SiteFooter,
+  SiteHeader,
+  StackStrip,
+} from '@/components/sections';
+import { WaitlistSection } from '@/components/waitlist-section';
+import { homeJsonLd, jsonLdScript } from '@/lib/jsonld';
 import { buildMetadata, site } from '@/lib/site';
 
 export const metadata = buildMetadata({
@@ -7,25 +21,33 @@ export const metadata = buildMetadata({
   path: '/',
 });
 
-/** Esqueleto da home. As seções completas (docs/architecture.md §11) chegam na fase Landing L1. */
 export default function HomePage() {
   return (
-    <main className="mx-auto flex max-w-content flex-col gap-9 px-4 py-16 md:px-0 md:py-24">
-      <h1 className="max-w-[640px] text-[2.6875rem] leading-[1.28] font-medium md:text-h1">
-        Tire seu projeto de software do papel sem precisar saber quanto custa
-      </h1>
-      <p className="max-w-[500px] text-body">
-        Descreva o que você precisa. A gente estima na hora, fecha o escopo com você e conecta seu
-        projeto a devs verificados — com pagamento protegido até a entrega.
-      </p>
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <a className={buttonClasses('primary')} href={`${site.appUrl}/novo-projeto`}>
-          Publicar projeto grátis
-        </a>
-        <a className={buttonClasses('outline')} href={`${site.appUrl}/cadastro?perfil=freelancer`}>
-          Quero ser freelancer
-        </a>
-      </div>
-    </main>
+    <>
+      <a
+        href="#conteudo"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-20 focus:rounded-button focus:bg-accent focus:px-4 focus:py-2"
+      >
+        Pular para o conteúdo
+      </a>
+      <SiteHeader />
+      <main id="conteudo">
+        <Hero />
+        <StackStrip />
+        <ProjectTypes />
+        <CtaBanner />
+        <Differentials />
+        <HowItWorks />
+        <FirstProject />
+        <Faq />
+        <WaitlistSection />
+      </main>
+      <SiteFooter />
+      <UtmPropagation />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(homeJsonLd) }}
+      />
+    </>
   );
 }

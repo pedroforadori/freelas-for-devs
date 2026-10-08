@@ -59,6 +59,32 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test:integration --filter=@f4d/api
 
+  lighthouse:
+    name: Lighthouse da landing (orçamento de qualidade)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build como produção (indexável)
+        run: pnpm turbo run build --filter=@f4d/landing
+        env:
+          NEXT_PUBLIC_ALLOW_INDEXING: 'true'
+          NEXT_PUBLIC_SITE_URL: https://freelas4devs.com.br
+      - name: Lighthouse CI (falha abaixo de 95 em qualquer categoria)
+        working-directory: apps/landing
+        run: npx --yes @lhci/cli@0.15 autorun
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-report
+          path: apps/landing/.lighthouseci
+
   security:
     name: Segredos e dependências
     runs-on: ubuntu-latest

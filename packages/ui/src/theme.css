@@ -9,6 +9,8 @@
   --color-surface: #f3f3f3;
   --color-bg: #ffffff;
   --color-muted: #6b6c75;
+  --color-dark-soft: #292a32;
+  --color-placeholder: #898989;
 
   --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 
@@ -21,6 +23,8 @@
   --text-h3--line-height: 1.28;
   --text-h4: 1.25rem; /* 20px */
   --text-h4--line-height: 1.28;
+  --text-lead: 1.25rem; /* 20px — links, botões, parágrafo do hero */
+  --text-lead--line-height: 1.4;
   --text-body: 1.125rem; /* 18px */
   --text-body--line-height: 1.4;
 

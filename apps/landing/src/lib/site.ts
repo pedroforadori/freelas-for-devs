@@ -5,6 +5,13 @@ export const site = {
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001',
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   allowIndexing: process.env.NEXT_PUBLIC_ALLOW_INDEXING === 'true',
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333',
+  /**
+   * Antes do lançamento, todos os CTAs levam à lista de espera; depois, ao cadastro no app.
+   * Troca por variável de ambiente, sem deploy de código.
+   */
+  appLive: process.env.NEXT_PUBLIC_APP_LIVE === 'true',
+  contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'contato@freelas4devs.com.br',
   description:
     'Marketplace de freelancers de desenvolvimento: publique seu projeto de site, loja virtual, app ou sistema sem precisar saber quanto custa.',
 } as const;
@@ -30,3 +37,11 @@ export const buildMetadata = ({ title, description, path }: PageSeo): Metadata =
   },
   twitter: { card: 'summary_large_image', title, description },
 });
+
+/** Destino dos CTAs conforme a fase (lista de espera ou app no ar). */
+export const ctaHref = (audience: 'client' | 'freelancer'): string => {
+  if (!site.appLive) return '#lista-de-espera';
+  return audience === 'freelancer'
+    ? `${site.appUrl}/cadastro?perfil=freelancer`
+    : `${site.appUrl}/cadastro`;
+};

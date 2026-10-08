@@ -5,6 +5,7 @@ import type { Redis } from 'ioredis';
 import { FilesModule } from './modules/files/files.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
+import { LeadsModule } from './modules/leads/leads.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { ConfigModule, ENV } from './shared/config/config.module.js';
 import type { Env } from './shared/config/env.js';
@@ -46,6 +47,7 @@ export const infrastructureModules = [
     IdentityModule,
     ProfilesModule,
     FilesModule,
+    LeadsModule,
   ],
   controllers: [OpenApiController],
   providers: [

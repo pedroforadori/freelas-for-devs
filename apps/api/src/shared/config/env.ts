@@ -106,6 +106,9 @@ export const envSchema = z
     CLAMAV_HOST: z.string().default('localhost'),
     CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
 
+    /** Cloudflare Turnstile (anti-bot dos formulários públicos). */
+    TURNSTILE_SECRET_KEY: z.string().optional(),
+
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
@@ -137,6 +140,12 @@ export const envSchema = z
         code: 'custom',
         path: ['MALWARE_SCAN'],
         message: 'uploads exigem antivírus em produção',
+      });
+    if (!env.TURNSTILE_SECRET_KEY)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TURNSTILE_SECRET_KEY'],
+        message: 'formulários públicos exigem anti-bot em produção',
       });
     if (env.MAIL_TRANSPORT === 'log')
       ctx.addIssue({
