@@ -38,7 +38,15 @@ describe('loadEnv', () => {
       expect(message).toContain('JWT_PRIVATE_KEY');
       expect(message).toContain('COOKIE_SECURE');
       expect(message).toContain('MAIL_TRANSPORT');
+      expect(message).toContain('ESTIMATOR');
     }
+  });
+
+  it('requires the Anthropic key to use the AI estimator', () => {
+    expect(() => loadEnv({ ...valid, ESTIMATOR: 'anthropic' })).toThrow('ANTHROPIC_API_KEY');
+    expect(
+      loadEnv({ ...valid, ESTIMATOR: 'anthropic', ANTHROPIC_API_KEY: 'sk' }).ANTHROPIC_MODEL,
+    ).toBe('claude-sonnet-5-5');
   });
 
   it('rejects wildcard CORS', () => {

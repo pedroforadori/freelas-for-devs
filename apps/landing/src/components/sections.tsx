@@ -213,10 +213,22 @@ export function ProjectTypes() {
                     </h3>
                     <p className="max-w-[260px] text-base">{card.description}</p>
                   </div>
-                  <a href="#como-funciona" className="flex items-center gap-[15px] text-lead">
-                    <ArrowBadge tone={tone.arrow} />
-                    Como funciona<span className="sr-only"> — {card.title.join(' ')}</span>
-                  </a>
+                  {site.appLive ? (
+                    <a
+                      href={ctaHref('client', card.type === 'ESTIMATE' ? undefined : card.type)}
+                      data-app-link=""
+                      className="flex items-center gap-[15px] text-lead"
+                    >
+                      <ArrowBadge tone={tone.arrow} />
+                      Descrever projeto
+                      <span className="sr-only"> — {card.title.join(' ')}</span>
+                    </a>
+                  ) : (
+                    <a href="#como-funciona" className="flex items-center gap-[15px] text-lead">
+                      <ArrowBadge tone={tone.arrow} />
+                      Como funciona<span className="sr-only"> — {card.title.join(' ')}</span>
+                    </a>
+                  )}
                 </div>
                 <ProjectTypeIllustration
                   type={card.type}

@@ -99,9 +99,20 @@ export function Dashboard() {
       ) : null}
       {hasRole(me, 'FREELANCER') ? <FreelancerStatus /> : null}
       {hasRole(me, 'CLIENT') ? (
-        <Card tone="surface" className="flex flex-col gap-3">
+        <Card tone="surface" className="flex flex-col gap-4">
           <h2 className="text-h4 font-medium">Publique seu projeto</h2>
-          <p className="text-body">Em breve: descreva sua ideia e receba uma estimativa na hora.</p>
+          <p className="text-body">
+            Descreva sua ideia e receba uma estimativa de preço e prazo na hora — sem precisar saber
+            quanto custa.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/novo-projeto" className={buttonClasses('primary')}>
+              Publicar projeto
+            </Link>
+            <Link href="/projetos" className={buttonClasses('outline')}>
+              Meus projetos
+            </Link>
+          </div>
         </Card>
       ) : null}
     </>

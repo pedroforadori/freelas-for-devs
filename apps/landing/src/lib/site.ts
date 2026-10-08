@@ -38,10 +38,12 @@ export const buildMetadata = ({ title, description, path }: PageSeo): Metadata =
   twitter: { card: 'summary_large_image', title, description },
 });
 
-/** Destino dos CTAs conforme a fase (lista de espera ou app no ar). */
-export const ctaHref = (audience: 'client' | 'freelancer'): string => {
+/**
+ * Destino dos CTAs conforme a fase (lista de espera ou app no ar). O cliente vai direto ao
+ * rascunho do projeto, sem cadastro; `projectType` pré-seleciona o tipo no formulário.
+ */
+export const ctaHref = (audience: 'client' | 'freelancer', projectType?: string): string => {
   if (!site.appLive) return '#lista-de-espera';
-  return audience === 'freelancer'
-    ? `${site.appUrl}/cadastro?perfil=freelancer`
-    : `${site.appUrl}/cadastro`;
+  if (audience === 'freelancer') return `${site.appUrl}/cadastro?perfil=freelancer`;
+  return `${site.appUrl}/novo-projeto${projectType ? `?tipo=${projectType}` : ''}`;
 };

@@ -1,6 +1,7 @@
 import { Controller, Inject } from '@nestjs/common';
 import { apiRoutes, type CreateUploadResponse, type FileDto } from '@f4d/contracts';
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor } from '@nestjs/bullmq';
+import { ReportingWorkerHost } from '../../../shared/infra/queue/reporting-worker-host.js';
 import type { Job } from 'bullmq';
 import type { RequestMeta } from '../../../shared/application/audit-log.js';
 import { QueueName } from '../../../shared/infra/queue/queue-names.js';
@@ -88,7 +89,7 @@ export class FilesController {
 
 /** Worker: verificação de tipo real + antivírus de cada upload confirmado. */
 @Processor(QueueName.Files, { concurrency: 2 })
-export class FileScanProcessor extends WorkerHost {
+export class FileScanProcessor extends ReportingWorkerHost {
   constructor(@Inject(ScanUploadedFile) private readonly scan: ScanUploadedFile) {
     super();
   }

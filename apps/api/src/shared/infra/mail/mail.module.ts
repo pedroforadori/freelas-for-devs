@@ -1,4 +1,5 @@
-import { BullModule, InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { BullModule, InjectQueue, Processor } from '@nestjs/bullmq';
+import { ReportingWorkerHost } from '../queue/reporting-worker-host.js';
 import { Global, Inject, Injectable, Module } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
 import type { EmailMessage, Mailer } from '../../application/mailer.js';
@@ -31,7 +32,7 @@ export class QueuedMailer implements Mailer {
 }
 
 @Processor(QueueName.Mail, { concurrency: 5 })
-export class MailProcessor extends WorkerHost {
+export class MailProcessor extends ReportingWorkerHost {
   constructor(@Inject(MAIL_TRANSPORT) private readonly transport: MailTransport) {
     super();
   }

@@ -14,5 +14,6 @@
 | 0010 | [Máquinas de estado declarativas no domínio](./0010-maquinas-de-estado.md)                      | Aceito |
 | 0011 | [Landing estática separada (apps/landing)](./0011-landing.md)                                   | Aceito |
 | 0012 | [Comissão customizável e plano do freelancer gratuito no MVP](./0012-monetizacao-mvp.md)        | Aceito |
+| 0013 | [Estimativa de projetos com IA assíncrona e revisada por humano](./0013-estimativa-ia.md)       | Aceito |
 
 Novo ADR: copie o formato acima, numere sequencialmente e nunca edite a decisão de um ADR aceito. Para mudar uma decisão, crie um ADR que a substitua.

@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import type { z } from 'zod';
 import { api, ensureCsrf } from '@/lib/api';
+import { legalUrls } from '@/lib/env';
 import { applyFieldErrors, errorMessage } from '@/lib/problem';
 import { Divider, OAuthButtons } from './oauth-buttons';
 import { safeRedirect, useCompleteSignIn } from './session';
@@ -90,13 +91,13 @@ export function RegisterForm() {
       <OAuthButtons role={role} redirectTo={role === 'FREELANCER' ? '/perfil' : redirectTo} />
       <p className="-mt-3 text-sm text-muted">
         Ao continuar com GitHub ou Google você aceita os{' '}
-        <Link href="/termos" className="underline">
+        <a href={legalUrls.terms} target="_blank" rel="noopener" className="underline">
           termos de uso
-        </Link>{' '}
+        </a>{' '}
         e a{' '}
-        <Link href="/privacidade" className="underline">
+        <a href={legalUrls.privacy} target="_blank" rel="noopener" className="underline">
           política de privacidade
-        </Link>
+        </a>
         .
       </p>
       <Divider />
@@ -139,13 +140,13 @@ export function RegisterForm() {
             />
             <span>
               Li e aceito os{' '}
-              <Link href="/termos" className="underline">
+              <a href={legalUrls.terms} target="_blank" rel="noopener" className="underline">
                 termos de uso
-              </Link>{' '}
+              </a>{' '}
               e a{' '}
-              <Link href="/privacidade" className="underline">
+              <a href={legalUrls.privacy} target="_blank" rel="noopener" className="underline">
                 política de privacidade
-              </Link>
+              </a>
               .
             </span>
           </label>

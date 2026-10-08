@@ -27,20 +27,23 @@ export const Permission = {
   ProfileClientWrite: 'profile:client:write',
   ProfileFreelancerWrite: 'profile:freelancer:write',
   FilesUpload: 'files:upload',
+  ProjectsClientWrite: 'projects:client:write',
   AdminUsersRead: 'admin:users:read',
   AdminFreelancersReview: 'admin:freelancers:review',
+  AdminProjectsRead: 'admin:projects:read',
   AdminAuditRead: 'admin:audit:read',
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
 export const permissionSchema = z.enum(Object.values(Permission) as [Permission, ...Permission[]]);
 
 export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
-  CLIENT: [Permission.ProfileClientWrite, Permission.FilesUpload],
+  CLIENT: [Permission.ProfileClientWrite, Permission.FilesUpload, Permission.ProjectsClientWrite],
   FREELANCER: [Permission.ProfileFreelancerWrite, Permission.FilesUpload],
   ADMIN: [
     Permission.FilesUpload,
     Permission.AdminUsersRead,
     Permission.AdminFreelancersReview,
+    Permission.AdminProjectsRead,
     Permission.AdminAuditRead,
   ],
   PROJECT_MANAGER: [],
@@ -50,6 +53,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
 export const MFA_REQUIRED_PERMISSIONS: ReadonlySet<Permission> = new Set([
   Permission.AdminUsersRead,
   Permission.AdminFreelancersReview,
+  Permission.AdminProjectsRead,
   Permission.AdminAuditRead,
 ]);
 

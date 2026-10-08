@@ -12,10 +12,14 @@ export function AppHeader() {
 
   const links = [
     { href: '/painel', label: 'Painel', show: true },
+    { href: '/projetos', label: 'Projetos', show: hasRole(me, 'CLIENT') },
     { href: '/perfil', label: 'Perfil', show: hasRole(me, 'FREELANCER') || hasRole(me, 'CLIENT') },
-    { href: '/admin/freelancers', label: 'Admin', show: hasRole(me, 'ADMIN') },
+    { href: '/admin/projetos', label: 'Admin', show: hasRole(me, 'ADMIN') },
     { href: '/conta/seguranca', label: 'Segurança', show: true },
   ].filter((link) => link.show);
+  // "Admin" fica ativo em qualquer seção administrativa.
+  const isActive = (href: string) =>
+    pathname.startsWith(href.startsWith('/admin') ? '/admin' : href);
 
   return (
     <header className="border-b border-dark/10">
@@ -28,10 +32,10 @@ export function AppHeader() {
             <Link
               key={link.href}
               href={link.href}
-              aria-current={pathname.startsWith(link.href) ? 'page' : undefined}
+              aria-current={isActive(link.href) ? 'page' : undefined}
               className={cn(
                 'rounded-pill px-3 py-1 text-body',
-                pathname.startsWith(link.href) ? 'bg-accent' : 'hover:bg-surface',
+                isActive(link.href) ? 'bg-accent' : 'hover:bg-surface',
               )}
             >
               {link.label}

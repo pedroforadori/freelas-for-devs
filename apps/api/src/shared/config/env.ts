@@ -109,13 +109,32 @@ export const envSchema = z
     /** Cloudflare Turnstile (anti-bot dos formulários públicos). */
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
+    /** Estimativa dos projetos: `heuristic` (sem IA) só em desenvolvimento e testes. */
+    ESTIMATOR: z.enum(['anthropic', 'heuristic']).default('heuristic'),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    ANTHROPIC_MODEL: z.string().default('claude-sonnet-5-5'),
+    /** Tempo máximo de uma chamada à IA; o job é repetido em caso de falha. */
+    ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().min(5_000).default(60_000),
+
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
     RESEND_API_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.ESTIMATOR === 'anthropic' && !env.ANTHROPIC_API_KEY)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ANTHROPIC_API_KEY'],
+        message: 'obrigatório com ESTIMATOR=anthropic',
+      });
     if (env.NODE_ENV !== 'production') return;
+    if (env.ESTIMATOR !== 'anthropic')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ESTIMATOR'],
+        message: 'a estimativa heurística não serve para clientes reais',
+      });
     // Em produção, nada de defaults inseguros.
     if (!env.JWT_PRIVATE_KEY)
       ctx.addIssue({

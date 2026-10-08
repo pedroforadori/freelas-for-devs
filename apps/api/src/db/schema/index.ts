@@ -5,3 +5,4 @@ export * from './identity.js';
 export * from './leads.js';
 export * from './outbox.js';
 export * from './profiles.js';
+export * from './projects.js';
