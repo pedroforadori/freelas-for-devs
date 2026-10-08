@@ -42,11 +42,12 @@ describe('loadEnv', () => {
     }
   });
 
-  it('requires the Anthropic key to use the AI estimator', () => {
+  it('requires the key of the chosen AI provider', () => {
+    expect(() => loadEnv({ ...valid, ESTIMATOR: 'gemini' })).toThrow('GEMINI_API_KEY');
     expect(() => loadEnv({ ...valid, ESTIMATOR: 'anthropic' })).toThrow('ANTHROPIC_API_KEY');
-    expect(
-      loadEnv({ ...valid, ESTIMATOR: 'anthropic', ANTHROPIC_API_KEY: 'sk' }).ANTHROPIC_MODEL,
-    ).toBe('claude-sonnet-5-5');
+    expect(loadEnv({ ...valid, ESTIMATOR: 'gemini', GEMINI_API_KEY: 'k' }).GEMINI_MODEL).toBe(
+      'gemini-3.8-flash',
+    );
   });
 
   it('rejects wildcard CORS', () => {

@@ -1,7 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { EstimationBrief } from '../../domain/project.js';
-import { ClaudeProjectEstimator, EstimatorOutputError } from './claude-estimator.js';
+import { ClaudeProjectEstimator } from './claude-estimator.js';
+import { EstimatorOutputError } from './estimator-output.js';
 import { renderBrief } from './prompt.js';
 
 const context = {

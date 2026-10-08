@@ -80,13 +80,22 @@ export const renderBrief = (brief: EstimationBrief): string => {
 
 const stringArray = { type: 'array', items: { type: 'string' } } as const;
 
-/** Ferramentas com schema estrito: a API garante que a saída respeita tipos e enums. */
-export const estimateTool = (levels: Level[], stacks: Stack[]) => ({
-  name: 'submit_estimate',
+export const ESTIMATE_TOOL = 'submit_estimate';
+export const CLARIFY_TOOL = 'ask_clarifying_questions';
+
+/** Ferramenta em formato neutro (JSON Schema); cada adapter a converte para o seu provedor. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: { type: 'object'; [key: string]: unknown };
+}
+
+/** Schemas estritos (sem campos extras): o provedor garante tipos e enums na saída. */
+export const estimateTool = (levels: Level[], stacks: Stack[]): ToolDefinition => ({
+  name: ESTIMATE_TOOL,
   description: 'Registra a estimativa preliminar do projeto.',
-  strict: true,
-  input_schema: {
-    type: 'object' as const,
+  parameters: {
+    type: 'object',
     additionalProperties: false,
     required: [
       'summary',
@@ -127,12 +136,11 @@ export const estimateTool = (levels: Level[], stacks: Stack[]) => ({
   },
 });
 
-export const clarifyTool = {
-  name: 'ask_clarifying_questions',
+export const clarifyTool: ToolDefinition = {
+  name: CLARIFY_TOOL,
   description: 'Pede ao cliente de 1 a 3 esclarecimentos de múltipla escolha antes de estimar.',
-  strict: true,
-  input_schema: {
-    type: 'object' as const,
+  parameters: {
+    type: 'object',
     additionalProperties: false,
     required: ['questions'],
     properties: {
@@ -155,3 +163,11 @@ export const clarifyTool = {
     },
   },
 };
+
+/** Ferramentas oferecidas na rodada: na 2ª (após as respostas), só a de estimativa. */
+export const toolsFor = (
+  allowQuestions: boolean,
+  levels: Level[],
+  stacks: Stack[],
+): ToolDefinition[] =>
+  allowQuestions ? [estimateTool(levels, stacks), clarifyTool] : [estimateTool(levels, stacks)];

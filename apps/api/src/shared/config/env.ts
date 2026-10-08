@@ -109,12 +109,17 @@ export const envSchema = z
     /** Cloudflare Turnstile (anti-bot dos formulários públicos). */
     TURNSTILE_SECRET_KEY: z.string().optional(),
 
-    /** Estimativa dos projetos: `heuristic` (sem IA) só em desenvolvimento e testes. */
-    ESTIMATOR: z.enum(['anthropic', 'heuristic']).default('heuristic'),
+    /**
+     * Provedor da estimativa dos projetos (ADR-0014): `gemini` em produção, `anthropic` como
+     * alternativa e `heuristic` (sem IA) só em desenvolvimento e testes.
+     */
+    ESTIMATOR: z.enum(['gemini', 'anthropic', 'heuristic']).default('heuristic'),
+    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
     ANTHROPIC_API_KEY: z.string().optional(),
     ANTHROPIC_MODEL: z.string().default('claude-sonnet-5-5'),
     /** Tempo máximo de uma chamada à IA; o job é repetido em caso de falha. */
-    ANTHROPIC_TIMEOUT_MS: z.coerce.number().int().min(5_000).default(60_000),
+    ESTIMATOR_TIMEOUT_MS: z.coerce.number().int().min(5_000).default(60_000),
 
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
@@ -122,6 +127,12 @@ export const envSchema = z
     RESEND_API_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.ESTIMATOR === 'gemini' && !env.GEMINI_API_KEY)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['GEMINI_API_KEY'],
+        message: 'obrigatório com ESTIMATOR=gemini',
+      });
     if (env.ESTIMATOR === 'anthropic' && !env.ANTHROPIC_API_KEY)
       ctx.addIssue({
         code: 'custom',
@@ -129,7 +140,7 @@ export const envSchema = z
         message: 'obrigatório com ESTIMATOR=anthropic',
       });
     if (env.NODE_ENV !== 'production') return;
-    if (env.ESTIMATOR !== 'anthropic')
+    if (env.ESTIMATOR === 'heuristic')
       ctx.addIssue({
         code: 'custom',
         path: ['ESTIMATOR'],

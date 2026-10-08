@@ -1,6 +1,6 @@
 # ADR-0013: Estimativa de projetos com IA assíncrona e revisada por humano
 
-- **Status:** Aceito
+- **Status:** Aceito — provedor substituído pelo [ADR-0014](./0014-gemini-estimativa.md) (Gemini)
 - **Data:** 2026-10-08
 
 ## Contexto

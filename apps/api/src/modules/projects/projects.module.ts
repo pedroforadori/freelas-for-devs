@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AUDIT_LOGGER, type AuditLogger } from '../../shared/application/audit-log.js';
@@ -30,6 +31,7 @@ import {
   DrizzleProjectRepository,
 } from './infrastructure/drizzle-projects.js';
 import { ClaudeProjectEstimator } from './infrastructure/estimation/claude-estimator.js';
+import { GeminiProjectEstimator } from './infrastructure/estimation/gemini-estimator.js';
 import { HeuristicProjectEstimator } from './infrastructure/estimation/heuristic-estimator.js';
 import {
   EstimationProcessor,
@@ -39,18 +41,30 @@ import { AdminProjectsController, ProjectsController } from './interface/project
 
 export const PROJECT_ESTIMATOR = Symbol('PROJECT_ESTIMATOR');
 
-const createEstimator = (env: Env): ProjectEstimator =>
-  env.ESTIMATOR === 'anthropic'
-    ? new ClaudeProjectEstimator(
-        // Retentativas ficam com o job (backoff e registro de cada chamada), não com o SDK.
+const createEstimator = (env: Env): ProjectEstimator => {
+  switch (env.ESTIMATOR) {
+    case 'gemini':
+      return new GeminiProjectEstimator(
+        new GoogleGenAI({
+          apiKey: env.GEMINI_API_KEY ?? '',
+          // Retentativas ficam com o job (backoff e registro de cada chamada), não com o SDK.
+          httpOptions: { timeout: env.ESTIMATOR_TIMEOUT_MS, retryOptions: { attempts: 1 } },
+        }),
+        env.GEMINI_MODEL,
+      );
+    case 'anthropic':
+      return new ClaudeProjectEstimator(
         new Anthropic({
           apiKey: env.ANTHROPIC_API_KEY,
-          timeout: env.ANTHROPIC_TIMEOUT_MS,
+          timeout: env.ESTIMATOR_TIMEOUT_MS,
           maxRetries: 0,
         }),
         env.ANTHROPIC_MODEL,
-      )
-    : new HeuristicProjectEstimator();
+      );
+    case 'heuristic':
+      return new HeuristicProjectEstimator();
+  }
+};
 
 const USE_CASES = [
   CreateProject,
