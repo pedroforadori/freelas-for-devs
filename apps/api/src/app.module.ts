@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Redis } from 'ioredis';
+import { DistributionModule } from './modules/distribution/distribution.module.js';
 import { FilesModule } from './modules/files/files.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
@@ -52,6 +53,7 @@ export const infrastructureModules = [
     LeadsModule,
     ProjectsModule,
     SettingsModule,
+    DistributionModule,
   ],
   controllers: [OpenApiController],
   providers: [

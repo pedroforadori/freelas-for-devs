@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { infrastructureModules } from './app.module.js';
+import { DistributionWorkerModule } from './modules/distribution/distribution.module.js';
 import { FilesWorkerModule } from './modules/files/files.module.js';
 import { ProjectsWorkerModule } from './modules/projects/projects.module.js';
 import { SettingsReaderModule } from './modules/settings/settings.module.js';
@@ -22,6 +23,7 @@ import { DomainEventsWorkerModule } from './shared/infra/queue/domain-events.pro
     SettingsReaderModule,
     FilesWorkerModule,
     ProjectsWorkerModule,
+    DistributionWorkerModule,
   ],
 })
 export class WorkerModule {}

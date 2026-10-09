@@ -74,6 +74,9 @@ type ProjectEvent =
   | 'approveScope'
   | 'reject'
   | 'reopenScope'
+  | 'startDistribution'
+  | 'exhaustCandidates'
+  | 'hire'
   | 'cancel';
 
 /**
@@ -109,7 +112,16 @@ export const projectMachine = defineStateMachine<
       reject: 'REJECTED',
       cancel: 'CANCELLED',
     },
-    READY_FOR_QUEUE: { reopenScope: 'SCOPING', cancel: 'CANCELLED' },
+    READY_FOR_QUEUE: {
+      reopenScope: 'SCOPING',
+      startDistribution: 'DISTRIBUTING',
+      cancel: 'CANCELLED',
+    },
+    DISTRIBUTING: { exhaustCandidates: 'NO_CANDIDATES', hire: 'HIRING', cancel: 'CANCELLED' },
+    // Sem devs no nível: o especialista ajusta nível/stacks e aprova de novo (nova rodada).
+    NO_CANDIDATES: { reopenScope: 'SCOPING', cancel: 'CANCELLED' },
+    // Contratação (pagamento) chega na F6; até lá o cliente ainda pode desistir.
+    HIRING: { cancel: 'CANCELLED' },
     REJECTED: {},
     CANCELLED: {},
   },
@@ -124,6 +136,9 @@ export const ProjectEvents = {
   ScopeSaved: 'projects.ScopeSaved',
   ScopeApproved: 'projects.ScopeApproved',
   ScopeReopened: 'projects.ScopeReopened',
+  DistributionStarted: 'projects.DistributionStarted',
+  NoCandidates: 'projects.NoCandidates',
+  HiringStarted: 'projects.HiringStarted',
   Rejected: 'projects.ProjectRejected',
   Cancelled: 'projects.ProjectCancelled',
 } as const;
@@ -385,6 +400,34 @@ export class Project extends AggregateRoot {
     this.props.scopeApprovedBy = null;
     this.props.updatedAt = now;
     this.record(ProjectEvents.ScopeReopened, now, { projectId: this.id });
+  }
+
+  /** A fila abriu a rodada de convites (chamado pelo módulo de distribuição). */
+  startDistribution(now: Date): void {
+    this.transition('startDistribution');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.DistributionStarted, now, { projectId: this.id });
+  }
+
+  /** A fila do nível esgotou sem nenhuma proposta: alerta para o especialista. */
+  exhaustCandidates(now: Date): void {
+    this.transition('exhaustCandidates');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.NoCandidates, now, {
+      projectId: this.id,
+      levelSlug: this.props.scope?.levelSlug ?? null,
+    });
+  }
+
+  /** O cliente escolheu uma proposta; a contratação segue com o pagamento (F6). */
+  hire(invitationId: string, now: Date): void {
+    this.transition('hire');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.HiringStarted, now, {
+      projectId: this.id,
+      clientId: this.props.clientId,
+      invitationId,
+    });
   }
 
   /** Versões novas desde a última gravação; o repositório as insere no histórico. */

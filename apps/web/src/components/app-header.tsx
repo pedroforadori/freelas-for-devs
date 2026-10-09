@@ -13,6 +13,7 @@ export function AppHeader() {
   const links = [
     { href: '/painel', label: 'Painel', show: true },
     { href: '/projetos', label: 'Projetos', show: hasRole(me, 'CLIENT') },
+    { href: '/convites', label: 'Convites', show: hasRole(me, 'FREELANCER') },
     { href: '/perfil', label: 'Perfil', show: hasRole(me, 'FREELANCER') || hasRole(me, 'CLIENT') },
     { href: '/admin/projetos', label: 'Admin', show: hasRole(me, 'ADMIN') },
     { href: '/conta/seguranca', label: 'Segurança', show: true },

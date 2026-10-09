@@ -20,6 +20,7 @@ import { ScopeView } from '@/features/projects/scope-view';
 import { dateTime, formatDuration, formatPriceRange } from '@/features/projects/format';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
+import { DistributionSection } from './distribution-section';
 import { ScopeEditor } from './scope-editor';
 
 const COMPLEXITY = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta' } as const;
@@ -118,6 +119,7 @@ export function ProjectReview({ projectId }: { projectId: string }) {
       ) : null}
 
       <ScopeSection project={project} />
+      <DistributionSection projectId={project.id} />
       <AiRuns runs={project.aiRuns} />
     </>
   );

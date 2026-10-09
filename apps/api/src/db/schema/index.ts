@@ -7,3 +7,4 @@ export * from './outbox.js';
 export * from './profiles.js';
 export * from './projects.js';
 export * from './settings.js';
+export * from './distribution.js';

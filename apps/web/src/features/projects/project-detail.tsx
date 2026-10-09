@@ -18,6 +18,7 @@ import { errorMessage } from '@/lib/problem';
 import { ClarificationForm } from './clarification-form';
 import { dateTime, formatDuration, formatFileSize, formatPriceRange } from './format';
 import { useProject, useSetProject } from './queries';
+import { ProposalsPanel } from './proposals-panel';
 import { ScopeView } from './scope-view';
 
 export function ProjectDetail({ projectId }: { projectId: string }) {
@@ -40,6 +41,14 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       </div>
 
       <StatusPanel project={project} />
+      {project.scope && project.status !== 'READY_FOR_QUEUE' ? (
+        <details className="rounded-card border border-dark bg-bg p-6 md:p-8">
+          <summary className="cursor-pointer text-h4 font-medium">Escopo aprovado</summary>
+          <div className="mt-6">
+            <ScopeView scope={project.scope} />
+          </div>
+        </details>
+      ) : null}
       <ProjectInfo project={project} />
       {project.status !== 'CANCELLED' && project.status !== 'REJECTED' ? (
         <CancelProject project={project} />
@@ -94,6 +103,16 @@ function StatusPanel({ project }: { project: Project }) {
           </div>
         </Card>
       ) : null;
+    case 'DISTRIBUTING':
+    case 'HIRING':
+      return <ProposalsPanel project={project} />;
+    case 'NO_CANDIDATES':
+      return (
+        <Alert title="Ainda não encontramos devs disponíveis">
+          Os devs compatíveis do nível deste projeto já foram convidados. Um especialista vai
+          revisar o escopo com você para ampliar as opções.
+        </Alert>
+      );
     case 'REJECTED':
       return (
         <Alert tone="error" title="Não pudemos aceitar este projeto">

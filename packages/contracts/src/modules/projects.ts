@@ -7,13 +7,16 @@ import { fileSchema } from './files.js';
 
 /**
  * Ciclo do projeto (docs/architecture.md §4.1). A F2 cobre da publicação até o escopo com o
- * especialista (F2) e a aprovação do escopo (F4); fila, contratação e execução chegam depois.
+ * especialista (F2), a aprovação do escopo (F4) e a distribuição até a escolha (F5).
  */
 export const ProjectStatus = {
   Estimating: 'ESTIMATING',
   AwaitingClarification: 'AWAITING_CLARIFICATION',
   Scoping: 'SCOPING',
   ReadyForQueue: 'READY_FOR_QUEUE',
+  Distributing: 'DISTRIBUTING',
+  NoCandidates: 'NO_CANDIDATES',
+  Hiring: 'HIRING',
   Rejected: 'REJECTED',
   Cancelled: 'CANCELLED',
 } as const;
@@ -27,6 +30,9 @@ export const PROJECT_STATUS_LABELS: Readonly<Record<ProjectStatus, string>> = {
   AWAITING_CLARIFICATION: 'Aguardando suas respostas',
   SCOPING: 'Escopo com especialista',
   READY_FOR_QUEUE: 'Escopo aprovado',
+  DISTRIBUTING: 'Recebendo propostas',
+  NO_CANDIDATES: 'Sem devs disponíveis',
+  HIRING: 'Proposta escolhida',
   REJECTED: 'Recusado',
   CANCELLED: 'Cancelado',
 };

@@ -13,6 +13,7 @@ import { ID_GENERATOR } from '../../shared/infra/id/uuid-v7.generator.js';
 import { QueueName } from '../../shared/infra/queue/queue-names.js';
 import type { Clock } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
+import { ProjectsFacade } from './application/facade.js';
 import { PROJECTS_DEPS, type ProjectEstimator, type ProjectsDeps } from './application/ports.js';
 import {
   AdminReadProjects,
@@ -79,6 +80,7 @@ const USE_CASES = [
   AdminReadProjects,
   ManageScope,
   ReadScopingMetrics,
+  ProjectsFacade,
 ] as const;
 
 /** Providers comuns ao processo HTTP e ao worker. */
@@ -132,6 +134,7 @@ const sharedProviders = [
 @Module({
   controllers: [ProjectsController, AdminProjectsController],
   providers: sharedProviders,
+  exports: [ProjectsFacade],
 })
 export class ProjectsModule {}
 
@@ -139,5 +142,6 @@ export class ProjectsModule {}
 @Module({
   imports: [BullModule.registerQueue({ name: QueueName.Estimation })],
   providers: [...sharedProviders, RequestEstimateOnProjectChange, EstimationProcessor],
+  exports: [ProjectsFacade],
 })
 export class ProjectsWorkerModule {}

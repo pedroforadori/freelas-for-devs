@@ -81,6 +81,22 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'convites' },
     usedFrom: 'F5',
   }),
+  'queue.maxInvitesPerRound': define({
+    schema: z.number().int().min(1).max(200),
+    default: 30,
+    label: 'Teto de convites por projeto',
+    description: 'Limite total de convites de uma rodada, contando as vagas repostas.',
+    input: { kind: 'integer', unit: 'convites' },
+    usedFrom: 'F5',
+  }),
+  'queue.maxOpenInvitesPerFreelancer': define({
+    schema: z.number().int().min(1).max(20),
+    default: 3,
+    label: 'Convites abertos por freelancer',
+    description: 'Acima disso o freelancer não recebe novos convites até responder os atuais.',
+    input: { kind: 'integer', unit: 'convites' },
+    usedFrom: 'F5',
+  }),
   'queue.inviteResponseHours': define({
     schema: z.number().int().min(1).max(168),
     default: 48,

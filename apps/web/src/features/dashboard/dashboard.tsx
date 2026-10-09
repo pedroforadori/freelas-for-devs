@@ -9,6 +9,7 @@ import { SectionHeading } from '@f4d/ui/components/section-heading';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { hasRole, useSession } from '@/features/auth/session';
+import { QueueStatusCard } from '@/features/invitations/queue-status';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
 
@@ -98,6 +99,7 @@ export function Dashboard() {
         </Alert>
       ) : null}
       {hasRole(me, 'FREELANCER') ? <FreelancerStatus /> : null}
+      {hasRole(me, 'FREELANCER') ? <QueueStatusCard /> : null}
       {hasRole(me, 'CLIENT') ? (
         <Card tone="surface" className="flex flex-col gap-4">
           <h2 className="text-h4 font-medium">Publique seu projeto</h2>

@@ -71,6 +71,13 @@
       "when": 1791471916354,
       "tag": "0009_scope_and_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791555101170,
+      "tag": "0010_distribution",
+      "breakpoints": true
     }
   ]
 }
