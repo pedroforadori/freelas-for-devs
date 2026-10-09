@@ -8,6 +8,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { SettingsModule } from './modules/settings/settings.module.js';
 import { ConfigModule, ENV } from './shared/config/config.module.js';
 import type { Env } from './shared/config/env.js';
 import { CoreModule } from './shared/infra/core.module.js';
@@ -50,6 +51,7 @@ export const infrastructureModules = [
     FilesModule,
     LeadsModule,
     ProjectsModule,
+    SettingsModule,
   ],
   controllers: [OpenApiController],
   providers: [

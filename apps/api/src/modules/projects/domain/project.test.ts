@@ -1,10 +1,29 @@
-import type { ClarificationQuestion, Estimate } from '@f4d/contracts';
+import type { ClarificationQuestion, Estimate, Scope } from '@f4d/contracts';
 import { describe, expect, it } from 'vitest';
 import { InvalidStateTransitionError } from '../../../shared/kernel/domain-error.js';
-import { InvalidClarificationAnswersError } from './errors.js';
+import {
+  InvalidClarificationAnswersError,
+  ScopeRuleError,
+  StaleScopeVersionError,
+} from './errors.js';
 import { Project, ProjectEvents, projectMachine } from './project.js';
 
 const now = new Date('2026-10-01T12:00:00Z');
+
+const later = new Date('2026-10-02T12:00:00Z');
+const limits = { minPriceCents: 50_000, maxDeadlineDays: 365 };
+const scope: Scope = {
+  type: 'SITE',
+  objective: 'Site institucional da padaria com cardápio e contato.',
+  features: ['Cardápio', 'Contato via formulário'],
+  screens: ['Início', 'Cardápio', 'Contato'],
+  acceptanceCriteria: ['Publicado no domínio do cliente'],
+  requiredStacks: ['react', 'react'],
+  levelSlug: 'iniciante',
+  priceRange: { minCents: 150_000, maxCents: 300_000 },
+  deadlineDays: 20,
+  notesForFreelancers: null,
+};
 
 const submit = () =>
   Project.submit({
@@ -152,6 +171,54 @@ describe('Project', () => {
     expect(() => project.completeEstimate(estimate, now)).toThrow(InvalidStateTransitionError);
   });
 
+  it('saves versioned scopes and approves exactly the reviewed version', () => {
+    const project = submit();
+    project.completeEstimate(estimate, now);
+    expect(project.toSnapshot().scopingStartedAt).toEqual(now);
+    expect(() => project.approveScope(1, 'admin', now)).toThrow('salve uma versão');
+
+    expect(project.saveScope(scope, 'admin', limits, now)).toBe(1);
+    expect(project.saveScope({ ...scope, deadlineDays: 25 }, 'admin', limits, now)).toBe(2);
+    expect(project.pullNewScopeVersions().map((v) => v.version)).toEqual([1, 2]);
+
+    expect(() => project.approveScope(1, 'admin', now)).toThrow(StaleScopeVersionError);
+    project.approveScope(2, 'admin', later);
+    expect(project.toSnapshot()).toMatchObject({
+      status: 'READY_FOR_QUEUE',
+      scopeApprovedAt: later,
+      scopeApprovedBy: 'admin',
+      scope: { deadlineDays: 25, requiredStacks: ['react'] },
+    });
+    const approved = project.pullEvents().find((e) => e.type === ProjectEvents.ScopeApproved);
+    expect(approved?.payload).toMatchObject({ version: 2, levelSlug: 'iniciante', type: 'SITE' });
+
+    project.reopenScope(later);
+    expect(project.toSnapshot()).toMatchObject({ status: 'SCOPING', scopeApprovedAt: null });
+    expect(project.saveScope(scope, 'admin', limits, later)).toBe(3);
+  });
+
+  it('enforces the configured price floor and deadline ceiling', () => {
+    const project = submit();
+    project.failEstimate(now);
+    const cheap = { ...scope, priceRange: { minCents: 10_000, maxCents: 90_000 } };
+    expect(() => project.saveScope(cheap, 'admin', limits, now)).toThrow(ScopeRuleError);
+    expect(() => project.saveScope({ ...scope, deadlineDays: 400 }, 'admin', limits, now)).toThrow(
+      'O prazo máximo é de 365 dias.',
+    );
+    expect(project.scopeVersion).toBe(0);
+  });
+
+  it('can be rejected while scoping, which is final', () => {
+    const project = submit();
+    project.completeEstimate(estimate, now);
+    project.reject('Pedido fora de desenvolvimento de software.', now);
+    expect(project.toSnapshot()).toMatchObject({ status: 'REJECTED', rejectedAt: now });
+    expect(() => project.cancel(null, now)).toThrow(InvalidStateTransitionError);
+    expect(() => project.saveScope(scope, 'admin', limits, now)).toThrow(
+      InvalidStateTransitionError,
+    );
+  });
+
   it('documents its lifecycle as a Mermaid diagram', () => {
     expect(projectMachine.toMermaid()).toBe(
       [
@@ -163,7 +230,13 @@ describe('Project', () => {
         '  ESTIMATING --> CANCELLED: cancel',
         '  AWAITING_CLARIFICATION --> ESTIMATING: answerClarifications',
         '  AWAITING_CLARIFICATION --> CANCELLED: cancel',
+        '  SCOPING --> SCOPING: saveScope',
+        '  SCOPING --> READY_FOR_QUEUE: approveScope',
+        '  SCOPING --> REJECTED: reject',
         '  SCOPING --> CANCELLED: cancel',
+        '  READY_FOR_QUEUE --> SCOPING: reopenScope',
+        '  READY_FOR_QUEUE --> CANCELLED: cancel',
+        '  REJECTED --> [*]',
         '  CANCELLED --> [*]',
       ].join('\n'),
     );

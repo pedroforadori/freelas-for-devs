@@ -27,3 +27,20 @@ export class ProjectLimitError extends DomainError {
     super(message, retryAfterSeconds ? { retryAfterSeconds } : {});
   }
 }
+
+export class ScopeRuleError extends DomainError {
+  readonly code = 'VALIDATION_FAILED';
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class StaleScopeVersionError extends DomainError {
+  readonly code = 'CONFLICT';
+  constructor(currentVersion: number) {
+    super(
+      `O escopo foi alterado (versão atual: ${currentVersion}). Revise a versão mais recente antes de aprovar.`,
+      { currentVersion },
+    );
+  }
+}

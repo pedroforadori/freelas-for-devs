@@ -1,9 +1,28 @@
-import type { Level, ProjectStatus, Stack } from '@f4d/contracts';
-import { and, asc, count, desc, eq, gt, gte, inArray, lt, ne, or } from 'drizzle-orm';
+import type { Level, ProjectStatus, ScopingMetrics, Stack } from '@f4d/contracts';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { levels, stacks } from '../../../db/schema/catalog.js';
 import { files } from '../../../db/schema/files.js';
 import { users } from '../../../db/schema/identity.js';
-import { aiEstimationRuns, projectAttachments, projects } from '../../../db/schema/projects.js';
+import {
+  aiEstimationRuns,
+  projectAttachments,
+  projects,
+  scopeVersions,
+} from '../../../db/schema/projects.js';
 import type { DatabaseContext } from '../../../shared/infra/database/database-context.js';
 import {
   appendToOutbox,
@@ -24,7 +43,7 @@ import type {
   ProjectQueries,
   ProjectRepository,
 } from '../application/ports.js';
-import { Project } from '../domain/project.js';
+import { Project, type ScopeVersionRecord } from '../domain/project.js';
 
 export class DrizzleProjectRepository implements ProjectRepository {
   constructor(
@@ -63,6 +82,13 @@ export class DrizzleProjectRepository implements ProjectRepository {
         : null,
       estimate: row.estimate,
       estimateFailed: row.estimateFailed,
+      scope: row.scope,
+      scopeVersion: row.scopeVersion,
+      scopingStartedAt: row.scopingStartedAt,
+      scopeApprovedAt: row.scopeApprovedAt,
+      scopeApprovedBy: row.scopeApprovedBy,
+      rejectionReason: row.rejectionReason,
+      rejectedAt: row.rejectedAt,
       cancelReason: row.cancelReason,
       cancelledAt: row.cancelledAt,
       createdAt: row.createdAt,
@@ -93,6 +119,13 @@ export class DrizzleProjectRepository implements ProjectRepository {
           : null,
         estimate: s.estimate,
         estimateFailed: s.estimateFailed,
+        scope: s.scope,
+        scopeVersion: s.scopeVersion,
+        scopingStartedAt: s.scopingStartedAt,
+        scopeApprovedAt: s.scopeApprovedAt,
+        scopeApprovedBy: s.scopeApprovedBy,
+        rejectionReason: s.rejectionReason,
+        rejectedAt: s.rejectedAt,
         cancelReason: s.cancelReason,
         cancelledAt: s.cancelledAt,
         updatedAt: s.updatedAt,
@@ -122,11 +155,25 @@ export class DrizzleProjectRepository implements ProjectRepository {
           .returning({ id: projects.id });
         if (updated.length === 0) throw new ConcurrencyError('Project', s.id);
       }
+      const versions = project.pullNewScopeVersions();
+      if (versions.length > 0) {
+        await db
+          .insert(scopeVersions)
+          .values(versions.map((version) => ({ ...version, projectId: s.id })));
+      }
       await appendToOutbox(db, assignEventIds(project.pullEvents(), this.ids));
       project.markPersisted();
     });
   }
 }
+
+const HOUR_MS = 60 * 60 * 1000;
+const round1 = (value: number | null | undefined) =>
+  value === null || value === undefined ? null : Math.round(value * 10) / 10;
+
+/** Ponto médio de uma faixa guardada em JSONB (`{"priceRange": {"minCents", "maxCents"}}`). */
+const midpoint = (column: typeof projects.scope | typeof projects.estimate) =>
+  sql`(((${column} -> 'priceRange' ->> 'minCents')::numeric + (${column} -> 'priceRange' ->> 'maxCents')::numeric) / 2)`;
 
 const summaryColumns = {
   id: projects.id,
@@ -205,6 +252,88 @@ export class DrizzleProjectQueries implements ProjectQueries {
       ...summary,
       client: { userId: clientId, displayName, email },
     }));
+  }
+
+  async listScopeVersions(projectId: string): Promise<ScopeVersionRecord[]> {
+    return this.ctx.executor
+      .select({
+        version: scopeVersions.version,
+        scope: scopeVersions.scope,
+        createdBy: users.displayName,
+        createdAt: scopeVersions.createdAt,
+      })
+      .from(scopeVersions)
+      .innerJoin(users, eq(users.id, scopeVersions.createdBy))
+      .where(eq(scopeVersions.projectId, projectId))
+      .orderBy(desc(scopeVersions.version));
+  }
+
+  /** Gargalo do especialista (docs/architecture.md §10, risco 4) e calibragem da IA. */
+  async scopingMetrics(now: Date): Promise<ScopingMetrics> {
+    const db = this.ctx.executor;
+    const since = new Date(now.getTime() - 30 * 24 * HOUR_MS);
+    const hoursToApprove = sql`extract(epoch from (${projects.scopeApprovedAt} - ${projects.scopingStartedAt})) / 3600`;
+    const approvedInWindow = and(
+      isNotNull(projects.scopeApprovedAt),
+      gte(projects.scopeApprovedAt, since),
+      isNotNull(projects.scopingStartedAt),
+    );
+
+    const [queue] = await db
+      .select({
+        scoping: count(),
+        oldest: sql`min(${projects.scopingStartedAt})`.mapWith(
+          (value: string | Date) => new Date(value),
+        ),
+      })
+      .from(projects)
+      .where(eq(projects.status, 'SCOPING'));
+    const [approved] = await db
+      .select({
+        approved: count(),
+        median: sql`percentile_cont(0.5) within group (order by ${hoursToApprove})`.mapWith(Number),
+        p90: sql`percentile_cont(0.9) within group (order by ${hoursToApprove})`.mapWith(Number),
+        avgVersions: sql`avg(${projects.scopeVersion})`.mapWith(Number),
+      })
+      .from(projects)
+      .where(approvedInWindow);
+    const [deviation] = await db
+      .select({
+        samples: count(),
+        median:
+          sql`percentile_cont(0.5) within group (order by ${midpoint(projects.scope)} / nullif(${midpoint(projects.estimate)}, 0) - 1)`.mapWith(
+            Number,
+          ),
+      })
+      .from(projects)
+      .where(and(approvedInWindow, isNotNull(projects.estimate)));
+    const [rejected] = await db
+      .select({ rejected: count() })
+      .from(projects)
+      .where(and(isNotNull(projects.rejectedAt), gte(projects.rejectedAt, since)));
+
+    return {
+      queue: {
+        scoping: queue?.scoping ?? 0,
+        oldestWaitingHours: queue?.oldest
+          ? round1((now.getTime() - queue.oldest.getTime()) / HOUR_MS)
+          : null,
+      },
+      last30Days: {
+        approved: approved?.approved ?? 0,
+        rejected: rejected?.rejected ?? 0,
+        medianHoursToApprove: round1(approved?.median),
+        p90HoursToApprove: round1(approved?.p90),
+        avgVersionsPerApproval: round1(approved?.avgVersions),
+        estimateDeviation: {
+          samples: deviation?.samples ?? 0,
+          medianPct:
+            deviation?.median === null || deviation?.median === undefined
+              ? null
+              : Math.round(deviation.median * 1000) / 10,
+        },
+      },
+    };
   }
 }
 

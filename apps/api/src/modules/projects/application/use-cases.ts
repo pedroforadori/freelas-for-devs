@@ -2,6 +2,8 @@ import {
   type ClarificationAnswer,
   type CreateProjectRequest,
   PROJECT_LIMITS,
+  type Scope,
+  type ScopingMetrics,
 } from '@f4d/contracts';
 import type { RequestMeta } from '../../../shared/application/audit-log.js';
 import { DAY_MS } from '../../../shared/kernel/clock.js';
@@ -9,9 +11,15 @@ import {
   InvalidAttachmentsError,
   ProjectLimitError,
   ProjectNotFoundError,
+  ScopeRuleError,
 } from '../domain/errors.js';
 import { Project } from '../domain/project.js';
-import { clarificationNeededEmail, estimateReadyEmail } from './emails.js';
+import {
+  clarificationNeededEmail,
+  estimateReadyEmail,
+  projectRejectedEmail,
+  scopeApprovedEmail,
+} from './emails.js';
 import { normalizeEstimate, normalizeQuestions } from './estimate-policy.js';
 import type { AdminProjectListItem, Keyset, ProjectListItem, ProjectsDeps } from './ports.js';
 
@@ -246,5 +254,106 @@ export class AdminReadProjects extends ProjectsUseCase {
     const project = await this.deps.projects.find(projectId);
     if (!project) throw new ProjectNotFoundError();
     return project;
+  }
+}
+
+/**
+ * Decisões do especialista sobre o escopo (F4). Toda alteração é auditada; aprovação e recusa
+ * avisam o cliente por e-mail. O evento ScopeApproved alimenta a fila de distribuição (F5).
+ */
+export class ManageScope extends ProjectsUseCase {
+  async save(adminId: string, projectId: string, scope: Scope, meta: RequestMeta) {
+    await this.assertCatalog(scope);
+    const limits = {
+      minPriceCents: await this.deps.settings.get('scope.minPriceCents'),
+      maxDeadlineDays: await this.deps.settings.get('scope.maxDeadlineDays'),
+    };
+    return this.mutate(adminId, projectId, meta, (project, now) => {
+      const version = project.saveScope(scope, adminId, limits, now);
+      return { action: 'admin.project_scope_saved', metadata: { version } };
+    });
+  }
+
+  async approve(adminId: string, projectId: string, version: number, meta: RequestMeta) {
+    const project = await this.mutate(adminId, projectId, meta, (loaded, now) => {
+      loaded.approveScope(version, adminId, now);
+      return { action: 'admin.project_scope_approved', metadata: { version } };
+    });
+    await this.notifyClient(project, (to, name, url) =>
+      scopeApprovedEmail(to, name, project.title, url),
+    );
+    return project;
+  }
+
+  async reject(adminId: string, projectId: string, reason: string, meta: RequestMeta) {
+    const project = await this.mutate(adminId, projectId, meta, (loaded, now) => {
+      loaded.reject(reason, now);
+      return { action: 'admin.project_rejected', metadata: { reason } };
+    });
+    await this.notifyClient(project, (to, name, url) =>
+      projectRejectedEmail(to, name, project.title, reason, url),
+    );
+    return project;
+  }
+
+  reopen(adminId: string, projectId: string, meta: RequestMeta) {
+    return this.mutate(adminId, projectId, meta, (project, now) => {
+      project.reopenScope(now);
+      return { action: 'admin.project_scope_reopened', metadata: {} };
+    });
+  }
+
+  /** Nível e stacks do escopo precisam existir no catálogo (a fila filtra por eles). */
+  private async assertCatalog(scope: Scope): Promise<void> {
+    const [levels, stacks] = await Promise.all([
+      this.deps.catalog.listLevels(),
+      this.deps.catalog.listStacks(),
+    ]);
+    if (!levels.some((level) => level.slug === scope.levelSlug))
+      throw new ScopeRuleError(`Nível desconhecido: ${scope.levelSlug}.`);
+    const known = new Set(stacks.map((stack) => stack.slug));
+    const unknown = scope.requiredStacks.filter((slug) => !known.has(slug));
+    if (unknown.length > 0)
+      throw new ScopeRuleError(`Stacks desconhecidas: ${unknown.join(', ')}.`);
+  }
+
+  private mutate(
+    adminId: string,
+    projectId: string,
+    meta: RequestMeta,
+    change: (project: Project, now: Date) => { action: string; metadata: Record<string, unknown> },
+  ): Promise<Project> {
+    return this.deps.uow.run(async () => {
+      const project = await this.deps.projects.find(projectId);
+      if (!project) throw new ProjectNotFoundError();
+      const { action, metadata } = change(project, this.deps.clock.now());
+      await this.deps.projects.save(project);
+      await this.deps.audit.record({
+        actorId: adminId,
+        action,
+        targetType: 'project',
+        targetId: projectId,
+        metadata,
+        request: meta,
+      });
+      return project;
+    });
+  }
+
+  private async notifyClient(
+    project: Project,
+    build: (to: string, name: string, url: string) => Parameters<ProjectsDeps['mailer']['send']>[0],
+  ): Promise<void> {
+    const person = await this.deps.people.find(project.clientId);
+    if (!person) return;
+    await this.deps.mailer
+      .send(build(person.email, person.displayName, this.projectUrl(project.id)))
+      .catch(() => undefined);
+  }
+}
+
+export class ReadScopingMetrics extends ProjectsUseCase {
+  execute(): Promise<ScopingMetrics> {
+    return this.deps.queries.scopingMetrics(this.deps.clock.now());
   }
 }

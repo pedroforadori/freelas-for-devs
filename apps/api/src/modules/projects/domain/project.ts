@@ -5,10 +5,15 @@ import type {
   Estimate,
   ProjectStatus,
   ProjectType,
+  Scope,
 } from '@f4d/contracts';
 import { AggregateRoot } from '../../../shared/kernel/aggregate-root.js';
 import { defineStateMachine } from '../../../shared/kernel/state-machine.js';
-import { InvalidClarificationAnswersError } from './errors.js';
+import {
+  InvalidClarificationAnswersError,
+  ScopeRuleError,
+  StaleScopeVersionError,
+} from './errors.js';
 
 export interface Clarification {
   questions: ClarificationQuestion[];
@@ -31,6 +36,14 @@ export interface ProjectSnapshot {
   clarification: Clarification | null;
   estimate: Estimate | null;
   estimateFailed: boolean;
+  scope: Scope | null;
+  /** 0 = nenhuma versão salva. */
+  scopeVersion: number;
+  scopingStartedAt: Date | null;
+  scopeApprovedAt: Date | null;
+  scopeApprovedBy: string | null;
+  rejectionReason: string | null;
+  rejectedAt: Date | null;
   cancelReason: string | null;
   cancelledAt: Date | null;
   createdAt: Date;
@@ -38,21 +51,44 @@ export interface ProjectSnapshot {
   version: number;
 }
 
+/** Nova versão do escopo salva pelo especialista, a gravar no histórico (scope_versions). */
+export interface ScopeVersionRecord {
+  version: number;
+  scope: Scope;
+  createdBy: string;
+  createdAt: Date;
+}
+
+/** Limites do escopo vindos das configurações do Admin. */
+export interface ScopeLimits {
+  minPriceCents: number;
+  maxDeadlineDays: number;
+}
+
 type ProjectEvent =
-  'requestClarification' | 'answerClarifications' | 'completeEstimate' | 'failEstimate' | 'cancel';
+  | 'requestClarification'
+  | 'answerClarifications'
+  | 'completeEstimate'
+  | 'failEstimate'
+  | 'saveScope'
+  | 'approveScope'
+  | 'reject'
+  | 'reopenScope'
+  | 'cancel';
 
 /**
- * Ciclo do projeto até o escopo (docs/architecture.md §4.1). A IA pode pedir esclarecimentos
- * uma única vez: depois das respostas, ela precisa estimar — sem laço de perguntas.
+ * Ciclo do projeto até a fila (docs/architecture.md §4.1). A IA pode pedir esclarecimentos
+ * uma única vez: depois das respostas, ela precisa estimar — sem laço de perguntas. O especialista
+ * só aprova um escopo já salvo; um aprovado pode ser reaberto enquanto a distribuição não começou.
  */
 export const projectMachine = defineStateMachine<
   ProjectStatus,
   ProjectEvent,
-  { alreadyAsked: boolean }
+  { alreadyAsked: boolean; hasScope: boolean }
 >({
   name: 'Project',
   initial: 'ESTIMATING',
-  terminal: ['CANCELLED'],
+  terminal: ['REJECTED', 'CANCELLED'],
   transitions: {
     ESTIMATING: {
       requestClarification: {
@@ -64,7 +100,17 @@ export const projectMachine = defineStateMachine<
       cancel: 'CANCELLED',
     },
     AWAITING_CLARIFICATION: { answerClarifications: 'ESTIMATING', cancel: 'CANCELLED' },
-    SCOPING: { cancel: 'CANCELLED' },
+    SCOPING: {
+      saveScope: 'SCOPING',
+      approveScope: {
+        target: 'READY_FOR_QUEUE',
+        guard: ({ hasScope }) => hasScope || 'salve uma versão do escopo antes de aprovar',
+      },
+      reject: 'REJECTED',
+      cancel: 'CANCELLED',
+    },
+    READY_FOR_QUEUE: { reopenScope: 'SCOPING', cancel: 'CANCELLED' },
+    REJECTED: {},
     CANCELLED: {},
   },
 });
@@ -75,6 +121,10 @@ export const ProjectEvents = {
   ClarificationsAnswered: 'projects.ClarificationsAnswered',
   EstimateReady: 'projects.EstimateReady',
   EstimateFailed: 'projects.EstimateFailed',
+  ScopeSaved: 'projects.ScopeSaved',
+  ScopeApproved: 'projects.ScopeApproved',
+  ScopeReopened: 'projects.ScopeReopened',
+  Rejected: 'projects.ProjectRejected',
   Cancelled: 'projects.ProjectCancelled',
 } as const;
 
@@ -99,6 +149,7 @@ export interface EstimationBrief {
 
 export class Project extends AggregateRoot {
   protected readonly aggregateType = 'Project';
+  private newScopeVersions: ScopeVersionRecord[] = [];
 
   private constructor(
     private props: Omit<ProjectSnapshot, 'id' | 'version'>,
@@ -130,6 +181,13 @@ export class Project extends AggregateRoot {
         clarification: null,
         estimate: null,
         estimateFailed: false,
+        scope: null,
+        scopeVersion: 0,
+        scopingStartedAt: null,
+        scopeApprovedAt: null,
+        scopeApprovedBy: null,
+        rejectionReason: null,
+        rejectedAt: null,
         cancelReason: null,
         cancelledAt: null,
         createdAt: now,
@@ -237,6 +295,7 @@ export class Project extends AggregateRoot {
     this.transition('completeEstimate');
     this.props.estimate = estimate;
     this.props.estimateFailed = false;
+    this.props.scopingStartedAt = now;
     this.props.updatedAt = now;
     this.record(ProjectEvents.EstimateReady, now, {
       projectId: this.id,
@@ -248,11 +307,91 @@ export class Project extends AggregateRoot {
   failEstimate(now: Date): void {
     this.transition('failEstimate');
     this.props.estimateFailed = true;
+    this.props.scopingStartedAt = now;
     this.props.updatedAt = now;
     this.record(ProjectEvents.EstimateFailed, now, {
       projectId: this.id,
       clientId: this.props.clientId,
     });
+  }
+
+  get scopeVersion(): number {
+    return this.props.scopeVersion;
+  }
+  get scope(): Scope | null {
+    return this.props.scope;
+  }
+
+  /**
+   * Salva uma nova versão do escopo (as anteriores ficam no histórico). Faixa e prazo respeitam os
+   * limites configurados pelo Admin.
+   */
+  saveScope(scope: Scope, adminId: string, limits: ScopeLimits, now: Date): number {
+    this.transition('saveScope');
+    if (scope.priceRange.minCents < limits.minPriceCents)
+      throw new ScopeRuleError(
+        `A faixa deve começar em pelo menos R$ ${(limits.minPriceCents / 100).toLocaleString('pt-BR')}.`,
+      );
+    if (scope.deadlineDays > limits.maxDeadlineDays)
+      throw new ScopeRuleError(`O prazo máximo é de ${limits.maxDeadlineDays} dias.`);
+
+    const version = this.props.scopeVersion + 1;
+    const saved = structuredClone({ ...scope, requiredStacks: [...new Set(scope.requiredStacks)] });
+    this.props.scope = saved;
+    this.props.scopeVersion = version;
+    this.props.updatedAt = now;
+    this.newScopeVersions.push({ version, scope: saved, createdBy: adminId, createdAt: now });
+    this.record(ProjectEvents.ScopeSaved, now, { projectId: this.id, version });
+    return version;
+  }
+
+  /**
+   * Aprova exatamente a versão que o especialista revisou: se outra versão foi salva depois
+   * (outra aba, outro Admin), a aprovação é recusada.
+   */
+  approveScope(version: number, adminId: string, now: Date): void {
+    if (this.props.scopeVersion > 0 && version !== this.props.scopeVersion)
+      throw new StaleScopeVersionError(this.props.scopeVersion);
+    this.transition('approveScope');
+    const scope = this.props.scope!;
+    this.props.scopeApprovedAt = now;
+    this.props.scopeApprovedBy = adminId;
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.ScopeApproved, now, {
+      projectId: this.id,
+      clientId: this.props.clientId,
+      version,
+      levelSlug: scope.levelSlug,
+      type: scope.type,
+      requiredStacks: scope.requiredStacks,
+    });
+  }
+
+  reject(reason: string, now: Date): void {
+    this.transition('reject');
+    this.props.rejectionReason = reason;
+    this.props.rejectedAt = now;
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.Rejected, now, {
+      projectId: this.id,
+      clientId: this.props.clientId,
+    });
+  }
+
+  /** Volta o escopo aprovado para edição (só antes de a distribuição começar). */
+  reopenScope(now: Date): void {
+    this.transition('reopenScope');
+    this.props.scopeApprovedAt = null;
+    this.props.scopeApprovedBy = null;
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.ScopeReopened, now, { projectId: this.id });
+  }
+
+  /** Versões novas desde a última gravação; o repositório as insere no histórico. */
+  pullNewScopeVersions(): ScopeVersionRecord[] {
+    const versions = this.newScopeVersions;
+    this.newScopeVersions = [];
+    return versions;
   }
 
   cancel(reason: string | null, now: Date): void {
@@ -273,6 +412,7 @@ export class Project extends AggregateRoot {
   private transition(event: ProjectEvent): void {
     const result = projectMachine.transition(this.props.status, event, {
       alreadyAsked: this.props.clarification !== null,
+      hasScope: this.props.scopeVersion > 0,
     });
     if (!result.ok) throw result.error;
     this.props.status = result.value;

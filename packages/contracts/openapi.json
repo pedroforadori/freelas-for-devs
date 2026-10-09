@@ -2285,6 +2285,8 @@
                 "ESTIMATING",
                 "AWAITING_CLARIFICATION",
                 "SCOPING",
+                "READY_FOR_QUEUE",
+                "REJECTED",
                 "CANCELLED"
               ]
             }
@@ -2368,6 +2370,426 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AdminProjectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/projects/{projectId}/scope": {
+      "put": {
+        "operationId": "adminSaveProjectScope",
+        "summary": "Salva uma nova versão do escopo (rascunho do especialista).",
+        "tags": [
+          "admin",
+          "projects"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/projects/{projectId}/approve": {
+      "post": {
+        "operationId": "adminApproveProjectScope",
+        "summary": "Aprova a versão informada do escopo: o projeto fica pronto para a fila.",
+        "tags": [
+          "admin",
+          "projects"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/projects/{projectId}/reject": {
+      "post": {
+        "operationId": "adminRejectProject",
+        "summary": "Recusa o projeto (fora do foco, ilegal, inviável), com motivo enviado ao cliente.",
+        "tags": [
+          "admin",
+          "projects"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/projects/{projectId}/reopen": {
+      "post": {
+        "operationId": "adminReopenProjectScope",
+        "summary": "Volta um escopo aprovado para edição (antes de a distribuição começar).",
+        "tags": [
+          "admin",
+          "projects"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/metrics/scoping": {
+      "get": {
+        "operationId": "adminScopingMetrics",
+        "summary": "Fila e tempos de escopo, e desvio entre a estimativa da IA e o escopo aprovado.",
+        "tags": [
+          "admin",
+          "projects"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopingMetrics"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/settings": {
+      "get": {
+        "operationId": "adminListSettings",
+        "summary": "Parâmetros de negócio com valor atual, padrão e versão.",
+        "tags": [
+          "admin",
+          "settings"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Setting"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/settings/{key}": {
+      "put": {
+        "operationId": "adminUpdateSetting",
+        "summary": "Altera um parâmetro (validado pelo schema da chave; auditado).",
+        "tags": [
+          "admin",
+          "settings"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "scope.minPriceCents",
+                "scope.maxDeadlineDays",
+                "payments.commissionBps",
+                "payments.commissionPayer",
+                "queue.roundSize",
+                "queue.inviteResponseHours",
+                "queue.roundsBeforeMonitoring",
+                "payments.paymentDeadlineHours",
+                "delivery.reviewDays",
+                "delivery.autoApproveDays"
+              ]
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "HTTP 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
                 }
               }
             }
@@ -2774,6 +3196,124 @@
         ],
         "additionalProperties": false
       },
+      "ScopeInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SITE",
+              "ECOMMERCE",
+              "APP",
+              "SYSTEM",
+              "OTHER"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000
+          },
+          "features": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "screens": {
+            "default": [],
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "acceptanceCriteria": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "requiredStacks": {
+            "default": [],
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.+#-]{0,39}$"
+            }
+          },
+          "levelSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "priceRange": {
+            "type": "object",
+            "properties": {
+              "minCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "minCents",
+              "maxCents"
+            ]
+          },
+          "deadlineDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "notesForFreelancers": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "type",
+          "objective",
+          "features",
+          "acceptanceCriteria",
+          "levelSlug",
+          "priceRange",
+          "deadlineDays"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateSettingRequest": {
+        "type": "object",
+        "properties": {
+          "value": {},
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "value",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
       "Liveness": {
         "type": "object",
         "properties": {
@@ -2955,6 +3495,8 @@
                 "admin:users:read",
                 "admin:freelancers:review",
                 "admin:projects:read",
+                "admin:projects:scope",
+                "admin:settings:write",
                 "admin:audit:read"
               ]
             }
@@ -3778,6 +4320,8 @@
               "ESTIMATING",
               "AWAITING_CLARIFICATION",
               "SCOPING",
+              "READY_FOR_QUEUE",
+              "REJECTED",
               "CANCELLED"
             ]
           },
@@ -3830,6 +4374,22 @@
           "estimateUnavailable": {
             "type": "boolean"
           },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClientScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rejectionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -3853,6 +4413,8 @@
           "clarification",
           "estimate",
           "estimateUnavailable",
+          "scope",
+          "rejectionReason",
           "createdAt",
           "updatedAt"
         ],
@@ -4009,6 +4571,108 @@
         ],
         "additionalProperties": false
       },
+      "ClientScope": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SITE",
+              "ECOMMERCE",
+              "APP",
+              "SYSTEM",
+              "OTHER"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000
+          },
+          "features": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "screens": {
+            "default": [],
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "acceptanceCriteria": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "requiredStacks": {
+            "default": [],
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.+#-]{0,39}$"
+            }
+          },
+          "priceRange": {
+            "type": "object",
+            "properties": {
+              "minCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "minCents",
+              "maxCents"
+            ],
+            "additionalProperties": false
+          },
+          "deadlineDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "notesForFreelancers": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "objective",
+          "features",
+          "screens",
+          "acceptanceCriteria",
+          "requiredStacks",
+          "priceRange",
+          "deadlineDays",
+          "notesForFreelancers"
+        ],
+        "additionalProperties": false
+      },
       "ProjectSummary": {
         "type": "object",
         "properties": {
@@ -4036,6 +4700,8 @@
               "ESTIMATING",
               "AWAITING_CLARIFICATION",
               "SCOPING",
+              "READY_FOR_QUEUE",
+              "REJECTED",
               "CANCELLED"
             ]
           },
@@ -4087,6 +4753,8 @@
               "ESTIMATING",
               "AWAITING_CLARIFICATION",
               "SCOPING",
+              "READY_FOR_QUEUE",
+              "REJECTED",
               "CANCELLED"
             ]
           },
@@ -4192,6 +4860,8 @@
               "ESTIMATING",
               "AWAITING_CLARIFICATION",
               "SCOPING",
+              "READY_FOR_QUEUE",
+              "REJECTED",
               "CANCELLED"
             ]
           },
@@ -4234,6 +4904,12 @@
           "estimateUnavailable": {
             "type": "boolean"
           },
+          "rejectionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -4270,6 +4946,46 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Estimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Scope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopeVersions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopeVersion"
+            }
+          },
+          "scopingStartedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopeApprovedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
               },
               {
                 "type": "null"
@@ -4346,10 +5062,15 @@
           "status",
           "clarification",
           "estimateUnavailable",
+          "rejectionReason",
           "createdAt",
           "updatedAt",
           "client",
           "estimate",
+          "scope",
+          "scopeVersions",
+          "scopingStartedAt",
+          "scopeApprovedAt",
           "aiRuns"
         ],
         "additionalProperties": false
@@ -4448,6 +5169,302 @@
           "suggestedStacks",
           "risks",
           "reviewNotes"
+        ],
+        "additionalProperties": false
+      },
+      "Scope": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SITE",
+              "ECOMMERCE",
+              "APP",
+              "SYSTEM",
+              "OTHER"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000
+          },
+          "features": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "screens": {
+            "default": [],
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "acceptanceCriteria": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          "requiredStacks": {
+            "default": [],
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.+#-]{0,39}$"
+            }
+          },
+          "levelSlug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "priceRange": {
+            "type": "object",
+            "properties": {
+              "minCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxCents": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "minCents",
+              "maxCents"
+            ],
+            "additionalProperties": false
+          },
+          "deadlineDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "notesForFreelancers": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "objective",
+          "features",
+          "screens",
+          "acceptanceCriteria",
+          "requiredStacks",
+          "levelSlug",
+          "priceRange",
+          "deadlineDays",
+          "notesForFreelancers"
+        ],
+        "additionalProperties": false
+      },
+      "ScopeVersion": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "version",
+          "scope",
+          "createdBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "ScopingMetrics": {
+        "type": "object",
+        "properties": {
+          "queue": {
+            "type": "object",
+            "properties": {
+              "scoping": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "oldestWaitingHours": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "scoping",
+              "oldestWaitingHours"
+            ],
+            "additionalProperties": false
+          },
+          "last30Days": {
+            "type": "object",
+            "properties": {
+              "approved": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "rejected": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "medianHoursToApprove": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "p90HoursToApprove": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "avgVersionsPerApproval": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "estimateDeviation": {
+                "type": "object",
+                "properties": {
+                  "samples": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "medianPct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "samples",
+                  "medianPct"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "approved",
+              "rejected",
+              "medianHoursToApprove",
+              "p90HoursToApprove",
+              "avgVersionsPerApproval",
+              "estimateDeviation"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "queue",
+          "last30Days"
+        ],
+        "additionalProperties": false
+      },
+      "Setting": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "scope.minPriceCents",
+              "scope.maxDeadlineDays",
+              "payments.commissionBps",
+              "payments.commissionPayer",
+              "queue.roundSize",
+              "queue.inviteResponseHours",
+              "queue.roundsBeforeMonitoring",
+              "payments.paymentDeadlineHours",
+              "delivery.reviewDays",
+              "delivery.autoApproveDays"
+            ]
+          },
+          "value": {},
+          "defaultValue": {},
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "usedFrom": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "defaultValue",
+          "label",
+          "description",
+          "usedFrom",
+          "version",
+          "updatedAt",
+          "updatedBy"
         ],
         "additionalProperties": false
       }

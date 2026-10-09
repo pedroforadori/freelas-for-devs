@@ -7,12 +7,14 @@ import { fileSchema } from './files.js';
 
 /**
  * Ciclo do projeto (docs/architecture.md §4.1). A F2 cobre da publicação até o escopo com o
- * especialista; os estados de fila, contratação e execução chegam nas fases seguintes.
+ * especialista (F2) e a aprovação do escopo (F4); fila, contratação e execução chegam depois.
  */
 export const ProjectStatus = {
   Estimating: 'ESTIMATING',
   AwaitingClarification: 'AWAITING_CLARIFICATION',
   Scoping: 'SCOPING',
+  ReadyForQueue: 'READY_FOR_QUEUE',
+  Rejected: 'REJECTED',
   Cancelled: 'CANCELLED',
 } as const;
 export type ProjectStatus = (typeof ProjectStatus)[keyof typeof ProjectStatus];
@@ -24,6 +26,8 @@ export const PROJECT_STATUS_LABELS: Readonly<Record<ProjectStatus, string>> = {
   ESTIMATING: 'Gerando estimativa',
   AWAITING_CLARIFICATION: 'Aguardando suas respostas',
   SCOPING: 'Escopo com especialista',
+  READY_FOR_QUEUE: 'Escopo aprovado',
+  REJECTED: 'Recusado',
   CANCELLED: 'Cancelado',
 };
 
@@ -149,6 +153,70 @@ export const estimateSchema = clientEstimateSchema
   })
   .meta({ id: 'Estimate' });
 
+const scopeItem = z
+  .string()
+  .trim()
+  .min(2, 'Cada item precisa de ao menos 2 caracteres.')
+  .max(300, 'Cada item pode ter até 300 caracteres.');
+
+/**
+ * Escopo padronizado fechado pelo especialista (versionado). É a referência de tudo o que vem
+ * depois: proposta dentro da faixa, entregas, critérios de aceite e o que é "fora de escopo".
+ */
+export const scopeInputSchema = z
+  .object({
+    type: projectTypeSchema,
+    objective: z
+      .string()
+      .trim()
+      .min(20, 'Descreva o objetivo com ao menos 20 caracteres.')
+      .max(2000),
+    features: z
+      .array(scopeItem)
+      .min(1, 'Liste ao menos uma funcionalidade.')
+      .max(30, 'Até 30 funcionalidades.'),
+    screens: z.array(scopeItem).max(40, 'Até 40 telas.').default([]),
+    acceptanceCriteria: z
+      .array(scopeItem)
+      .min(1, 'Liste ao menos um critério de aceite.')
+      .max(30, 'Até 30 critérios.'),
+    requiredStacks: z.array(stackSlugSchema).max(8, 'Até 8 stacks.').default([]),
+    levelSlug: z.string().min(1, 'Escolha o nível.').max(40),
+    priceRange: z
+      .object({
+        minCents: z.number('Informe o valor.').int().positive('Informe um valor maior que zero.'),
+        maxCents: z.number('Informe o valor.').int().positive('Informe um valor maior que zero.'),
+      })
+      .refine((range) => range.minCents <= range.maxCents, {
+        error: 'O mínimo não pode ser maior que o máximo.',
+        path: ['maxCents'],
+      }),
+    deadlineDays: z
+      .number('Informe o prazo em dias.')
+      .int('Use um número inteiro de dias.')
+      .min(1, 'Informe o prazo em dias.')
+      .max(730, 'Prazo máximo de 730 dias.'),
+    notesForFreelancers: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .meta({ id: 'ScopeInput' });
+
+export const scopeSchema = scopeInputSchema
+  .extend({ notesForFreelancers: z.string().nullable() })
+  .meta({ id: 'Scope' });
+
+/** Escopo visto pelo cliente depois da aprovação (o nível do freelancer é interno). */
+export const clientScopeSchema = scopeSchema.omit({ levelSlug: true }).meta({ id: 'ClientScope' });
+
+export const scopeVersionSchema = z
+  .object({
+    version: z.number().int().positive(),
+    scope: scopeSchema,
+    createdBy: z.string(),
+    createdAt: z.iso.datetime(),
+  })
+  .meta({ id: 'ScopeVersion' });
+
 const attachmentSchema = fileSchema
   .pick({ id: true, fileName: true, contentType: true, size: true, status: true })
   .meta({ id: 'ProjectAttachment' });
@@ -172,6 +240,9 @@ export const projectSchema = z
     estimate: clientEstimateSchema.nullable(),
     /** A IA não conseguiu estimar: o especialista fará a estimativa no escopo. */
     estimateUnavailable: z.boolean(),
+    /** Escopo aprovado (só a partir de READY_FOR_QUEUE). */
+    scope: clientScopeSchema.nullable(),
+    rejectionReason: z.string().nullable(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
@@ -186,10 +257,15 @@ export const adminProjectSummarySchema = projectSummarySchema
   .meta({ id: 'AdminProjectSummary' });
 
 export const adminProjectDetailSchema = projectSchema
-  .omit({ estimate: true })
+  .omit({ estimate: true, scope: true })
   .extend({
     client: adminProjectSummarySchema.shape.client,
     estimate: estimateSchema.nullable(),
+    /** Versão atual do escopo (rascunho do especialista ou a aprovada). */
+    scope: scopeSchema.nullable(),
+    scopeVersions: z.array(scopeVersionSchema),
+    scopingStartedAt: z.iso.datetime().nullable(),
+    scopeApprovedAt: z.iso.datetime().nullable(),
     /** Chamadas à IA (custo e auditoria do prompt). */
     aiRuns: z.array(
       z.object({
@@ -206,6 +282,36 @@ export const adminProjectDetailSchema = projectSchema
   })
   .meta({ id: 'AdminProjectDetail' });
 
+export const scopingMetricsSchema = z
+  .object({
+    queue: z.object({
+      scoping: z.number().int(),
+      /** Há quanto tempo o projeto mais antigo espera o escopo. */
+      oldestWaitingHours: z.number().nullable(),
+    }),
+    last30Days: z.object({
+      approved: z.number().int(),
+      rejected: z.number().int(),
+      medianHoursToApprove: z.number().nullable(),
+      p90HoursToApprove: z.number().nullable(),
+      avgVersionsPerApproval: z.number().nullable(),
+      /**
+       * Faixa aprovada vs. estimativa da IA (pontos médios): mediana do desvio relativo.
+       * Positivo = o especialista aprovou acima da IA. Base para calibrar o prompt.
+       */
+      estimateDeviation: z.object({
+        samples: z.number().int(),
+        medianPct: z.number().nullable(),
+      }),
+    }),
+  })
+  .meta({ id: 'ScopingMetrics' });
+
+export type ScopeInput = z.input<typeof scopeInputSchema>;
+export type Scope = z.infer<typeof scopeSchema>;
+export type ClientScope = z.infer<typeof clientScopeSchema>;
+export type ScopeVersion = z.infer<typeof scopeVersionSchema>;
+export type ScopingMetrics = z.infer<typeof scopingMetricsSchema>;
 export type CreateProjectRequest = z.infer<typeof createProjectRequestSchema>;
 export type ClarificationQuestion = z.infer<typeof clarificationQuestionSchema>;
 export type ClarificationAnswer = z.infer<typeof clarificationAnswerSchema>;
@@ -219,6 +325,7 @@ export type AdminProjectDetail = z.infer<typeof adminProjectDetailSchema>;
 const projectParams = z.object({ projectId: z.uuid() });
 const clientWrite = { permission: Permission.ProjectsClientWrite } as const;
 const adminRead = { permission: Permission.AdminProjectsRead } as const;
+const adminScope = { permission: Permission.AdminProjectsScope } as const;
 
 export const projectRoutes = {
   createProject: defineRoute({
@@ -295,5 +402,61 @@ export const projectRoutes = {
     auth: adminRead,
     request: { params: projectParams },
     responses: { 200: adminProjectDetailSchema },
+  }),
+  adminSaveScope: defineRoute({
+    method: 'put',
+    path: '/v1/admin/projects/{projectId}/scope',
+    operationId: 'adminSaveProjectScope',
+    summary: 'Salva uma nova versão do escopo (rascunho do especialista).',
+    tags: ['admin', 'projects'],
+    auth: adminScope,
+    request: { params: projectParams, body: scopeInputSchema },
+    responses: { 200: adminProjectDetailSchema },
+  }),
+  adminApproveScope: defineRoute({
+    method: 'post',
+    path: '/v1/admin/projects/{projectId}/approve',
+    operationId: 'adminApproveProjectScope',
+    summary: 'Aprova a versão informada do escopo: o projeto fica pronto para a fila.',
+    tags: ['admin', 'projects'],
+    auth: adminScope,
+    request: {
+      params: projectParams,
+      body: z.object({ version: z.number().int().positive() }).strict(),
+    },
+    responses: { 200: adminProjectDetailSchema },
+  }),
+  adminRejectProject: defineRoute({
+    method: 'post',
+    path: '/v1/admin/projects/{projectId}/reject',
+    operationId: 'adminRejectProject',
+    summary: 'Recusa o projeto (fora do foco, ilegal, inviável), com motivo enviado ao cliente.',
+    tags: ['admin', 'projects'],
+    auth: adminScope,
+    request: {
+      params: projectParams,
+      body: z.object({ reason: z.string().trim().min(10).max(1000) }).strict(),
+    },
+    responses: { 200: adminProjectDetailSchema },
+  }),
+  adminReopenScope: defineRoute({
+    method: 'post',
+    path: '/v1/admin/projects/{projectId}/reopen',
+    operationId: 'adminReopenProjectScope',
+    summary: 'Volta um escopo aprovado para edição (antes de a distribuição começar).',
+    tags: ['admin', 'projects'],
+    auth: adminScope,
+    request: { params: projectParams },
+    responses: { 200: adminProjectDetailSchema },
+  }),
+  adminScopingMetrics: defineRoute({
+    method: 'get',
+    path: '/v1/admin/metrics/scoping',
+    operationId: 'adminScopingMetrics',
+    summary: 'Fila e tempos de escopo, e desvio entre a estimativa da IA e o escopo aprovado.',
+    tags: ['admin', 'projects'],
+    auth: adminRead,
+    request: {},
+    responses: { 200: scopingMetricsSchema },
   }),
 } as const;

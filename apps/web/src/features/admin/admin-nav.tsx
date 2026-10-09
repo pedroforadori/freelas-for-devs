@@ -7,12 +7,13 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/admin/projetos', label: 'Projetos' },
   { href: '/admin/freelancers', label: 'Freelancers' },
+  { href: '/admin/configuracoes', label: 'Configurações' },
 ];
 
 export function AdminNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Administração" className="flex gap-2 border-b border-dark/10 pb-4">
+    <nav aria-label="Administração" className="flex flex-wrap gap-2 border-b border-dark/10 pb-4">
       {LINKS.map((link) => (
         <Link
           key={link.href}

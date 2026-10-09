@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AUDIT_LOGGER, type AuditLogger } from '../../shared/application/audit-log.js';
 import { MAILER, type Mailer } from '../../shared/application/mailer.js';
+import { SETTINGS_READER, type SettingsReader } from '../../shared/application/settings-reader.js';
 import { ENV } from '../../shared/config/config.module.js';
 import type { Env } from '../../shared/config/env.js';
 import { CLOCK } from '../../shared/infra/core.module.js';
@@ -20,7 +21,9 @@ import {
   CreateProject,
   FailEstimate,
   GenerateEstimate,
+  ManageScope,
   ReadMyProjects,
+  ReadScopingMetrics,
 } from './application/use-cases.js';
 import {
   DrizzleAiRunLog,
@@ -74,6 +77,8 @@ const USE_CASES = [
   GenerateEstimate,
   FailEstimate,
   AdminReadProjects,
+  ManageScope,
+  ReadScopingMetrics,
 ] as const;
 
 /** Providers comuns ao processo HTTP e ao worker. */
@@ -81,7 +86,16 @@ const sharedProviders = [
   { provide: PROJECT_ESTIMATOR, inject: [ENV], useFactory: createEstimator },
   {
     provide: PROJECTS_DEPS,
-    inject: [ENV, DatabaseContext, ID_GENERATOR, CLOCK, AUDIT_LOGGER, MAILER, PROJECT_ESTIMATOR],
+    inject: [
+      ENV,
+      DatabaseContext,
+      ID_GENERATOR,
+      CLOCK,
+      AUDIT_LOGGER,
+      MAILER,
+      PROJECT_ESTIMATOR,
+      SETTINGS_READER,
+    ],
     useFactory: (
       env: Env,
       ctx: DatabaseContext,
@@ -90,6 +104,7 @@ const sharedProviders = [
       audit: AuditLogger,
       mailer: Mailer,
       estimator: ProjectEstimator,
+      settings: SettingsReader,
     ): ProjectsDeps => ({
       projects: new DrizzleProjectRepository(ctx, ids),
       queries: new DrizzleProjectQueries(ctx),
@@ -98,6 +113,7 @@ const sharedProviders = [
       people: new DrizzleProjectPeople(ctx),
       aiRuns: new DrizzleAiRunLog(ctx),
       estimator,
+      settings,
       mailer,
       audit,
       uow: ctx,

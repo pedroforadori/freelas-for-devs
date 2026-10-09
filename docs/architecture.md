@@ -217,7 +217,7 @@ stateDiagram-v2
   COMPLETED --> [*]
 ```
 
-O estado de rascunho existe **só no cliente** (Zustand persistido). Não há estado `SUBMITTED`: o outbox garante que todo projeto em `ESTIMATING` tem o pedido de estimativa publicado (ADR-0013). Implementado na F2 até `SCOPING`; a tabela de transições em `apps/api/src/modules/projects/domain/project.ts` é a fonte da verdade. O `IN_PROGRESS` delega o detalhe ao **Contrato** (4.3).
+O estado de rascunho existe **só no cliente** (Zustand persistido). Não há estado `SUBMITTED`: o outbox garante que todo projeto em `ESTIMATING` tem o pedido de estimativa publicado (ADR-0013). Implementado até `READY_FOR_QUEUE`/`REJECTED` (F2 e F4, com escopo versionado em `scope_versions` e reabertura `READY_FOR_QUEUE → SCOPING` antes da distribuição); a tabela de transições em `apps/api/src/modules/projects/domain/project.ts` é a fonte da verdade. O `IN_PROGRESS` delega o detalhe ao **Contrato** (4.3).
 
 ### 4.2 Convite / Proposta
 

@@ -64,6 +64,13 @@
       "when": 1791470456006,
       "tag": "0008_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791471916354,
+      "tag": "0009_scope_and_settings",
+      "breakpoints": true
     }
   ]
 }

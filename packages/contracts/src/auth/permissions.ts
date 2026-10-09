@@ -31,6 +31,8 @@ export const Permission = {
   AdminUsersRead: 'admin:users:read',
   AdminFreelancersReview: 'admin:freelancers:review',
   AdminProjectsRead: 'admin:projects:read',
+  AdminProjectsScope: 'admin:projects:scope',
+  AdminSettingsWrite: 'admin:settings:write',
   AdminAuditRead: 'admin:audit:read',
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];
@@ -44,6 +46,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     Permission.AdminUsersRead,
     Permission.AdminFreelancersReview,
     Permission.AdminProjectsRead,
+    Permission.AdminProjectsScope,
+    Permission.AdminSettingsWrite,
     Permission.AdminAuditRead,
   ],
   PROJECT_MANAGER: [],
@@ -54,6 +58,8 @@ export const MFA_REQUIRED_PERMISSIONS: ReadonlySet<Permission> = new Set([
   Permission.AdminUsersRead,
   Permission.AdminFreelancersReview,
   Permission.AdminProjectsRead,
+  Permission.AdminProjectsScope,
+  Permission.AdminSettingsWrite,
   Permission.AdminAuditRead,
 ]);
 

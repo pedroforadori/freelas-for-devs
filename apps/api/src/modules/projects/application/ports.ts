@@ -5,14 +5,16 @@ import type {
   Level,
   ProjectStatus,
   ProjectType,
+  ScopingMetrics,
   Stack,
 } from '@f4d/contracts';
 import type { AuditLogger } from '../../../shared/application/audit-log.js';
 import type { Mailer } from '../../../shared/application/mailer.js';
+import type { SettingsReader } from '../../../shared/application/settings-reader.js';
 import type { UnitOfWork } from '../../../shared/application/unit-of-work.js';
 import type { Clock } from '../../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../../shared/kernel/domain-event.js';
-import type { EstimationBrief, Project } from '../domain/project.js';
+import type { EstimationBrief, Project, ScopeVersionRecord } from '../domain/project.js';
 
 export interface ProjectRepository {
   find(id: string): Promise<Project | null>;
@@ -55,6 +57,9 @@ export interface ProjectQueries {
     limit: number;
     after: Keyset | null;
   }): Promise<AdminProjectListItem[]>;
+  /** Histórico do escopo, da versão mais recente para a mais antiga (com o nome do autor). */
+  listScopeVersions(projectId: string): Promise<ScopeVersionRecord[]>;
+  scopingMetrics(now: Date): Promise<ScopingMetrics>;
 }
 
 export interface AttachmentView {
@@ -136,6 +141,7 @@ export interface ProjectsDeps {
   people: PeopleDirectory;
   aiRuns: AiRunLog;
   estimator: ProjectEstimator;
+  settings: SettingsReader;
   mailer: Mailer;
   audit: AuditLogger;
   uow: UnitOfWork;

@@ -18,6 +18,7 @@ import { errorMessage } from '@/lib/problem';
 import { ClarificationForm } from './clarification-form';
 import { dateTime, formatDuration, formatFileSize, formatPriceRange } from './format';
 import { useProject, useSetProject } from './queries';
+import { ScopeView } from './scope-view';
 
 export function ProjectDetail({ projectId }: { projectId: string }) {
   const query = useProject(projectId);
@@ -40,7 +41,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       <StatusPanel project={project} />
       <ProjectInfo project={project} />
-      {project.status !== 'CANCELLED' ? <CancelProject project={project} /> : null}
+      {project.status !== 'CANCELLED' && project.status !== 'REJECTED' ? (
+        <CancelProject project={project} />
+      ) : null}
     </>
   );
 }
@@ -73,6 +76,30 @@ function StatusPanel({ project }: { project: Project }) {
             estimar preço e prazo ao fechar o escopo com você.
           </p>
         </Card>
+      );
+    case 'READY_FOR_QUEUE':
+      return project.scope ? (
+        <Card tone="accent" className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium tracking-wide uppercase">Escopo aprovado</p>
+            <h2 className="text-h4 font-medium">É isso que será construído</h2>
+          </div>
+          <ScopeView scope={project.scope} />
+          <div className="rounded-[20px] border border-dark bg-bg p-4 text-body">
+            <p className="font-medium">Próximo passo</p>
+            <p>
+              Devs compatíveis com o projeto serão convidados em rodadas e enviarão propostas dentro
+              desta faixa. Você escolhe a melhor — e só paga depois de escolher.
+            </p>
+          </div>
+        </Card>
+      ) : null;
+    case 'REJECTED':
+      return (
+        <Alert tone="error" title="Não pudemos aceitar este projeto">
+          <p>{project.rejectionReason}</p>
+          <p className="mt-2">Se quiser, publique de novo com mais detalhes.</p>
+        </Alert>
       );
     case 'CANCELLED':
       return <Alert title="Projeto cancelado">Este projeto não recebe mais propostas.</Alert>;

@@ -9,20 +9,24 @@ import {
 } from '@f4d/contracts';
 import { Alert } from '@f4d/ui/components/alert';
 import { Badge } from '@f4d/ui/components/badge';
+import { Button } from '@f4d/ui/components/button';
 import { Card } from '@f4d/ui/components/card';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useLevels } from '@/features/profile/queries';
+import { ScopeView } from '@/features/projects/scope-view';
 import { dateTime, formatDuration, formatPriceRange } from '@/features/projects/format';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
+import { ScopeEditor } from './scope-editor';
 
 const COMPLEXITY = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta' } as const;
 
 /**
  * Leitura do projeto para o especialista: pedido do cliente, respostas e a estimativa completa
- * da IA (nível, stacks, riscos e alertas). A aprovação do escopo chega na F4.
+ * da IA (nível, stacks, riscos e alertas) ao lado do editor de escopo versionado (F4).
  */
 export function ProjectReview({ projectId }: { projectId: string }) {
   const levels = useLevels();
@@ -113,6 +117,7 @@ export function ProjectReview({ projectId }: { projectId: string }) {
         </Alert>
       ) : null}
 
+      <ScopeSection project={project} />
       <AiRuns runs={project.aiRuns} />
     </>
   );
@@ -199,5 +204,87 @@ function AiRuns({ runs }: { runs: AdminProjectDetail['aiRuns'] }) {
         </table>
       </div>
     </Card>
+  );
+}
+
+/** Editor enquanto em escopo; escopo aprovado (com reabertura) depois; histórico de versões. */
+function ScopeSection({ project }: { project: AdminProjectDetail }) {
+  const queryClient = useQueryClient();
+  const levels = useLevels();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const reopen = async () => {
+    if (!window.confirm('Voltar o escopo para edição? O projeto sai da fila até nova aprovação.'))
+      return;
+    setError(null);
+    setPending(true);
+    try {
+      const detail = await unwrap(
+        api.POST('/v1/admin/projects/{projectId}/reopen', {
+          params: { path: { projectId: project.id } },
+        }),
+      );
+      queryClient.setQueryData(['admin', 'projects', 'detail', project.id], detail);
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
+    } catch (reopenError) {
+      setError(errorMessage(reopenError));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <>
+      {project.status === 'SCOPING' ? <ScopeEditor project={project} /> : null}
+      {project.status === 'READY_FOR_QUEUE' && project.scope ? (
+        <Card tone="accent" className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-h4 font-medium">
+              Escopo aprovado (versão {project.scopeVersions[0]?.version})
+            </h2>
+            <Badge tone="dark">
+              Nível{' '}
+              {levels.data?.find((level) => level.slug === project.scope?.levelSlug)?.name ??
+                project.scope.levelSlug}
+            </Badge>
+          </div>
+          <ScopeView scope={project.scope} />
+          {error ? <Alert tone="error">{error}</Alert> : null}
+          <Button
+            variant="outline"
+            className="h-12 self-start px-6"
+            disabled={pending}
+            onClick={() => void reopen()}
+          >
+            Reabrir para edição
+          </Button>
+        </Card>
+      ) : null}
+      {project.status === 'REJECTED' ? (
+        <Alert tone="error" title="Projeto recusado">
+          {project.rejectionReason}
+        </Alert>
+      ) : null}
+      {project.scopeVersions.length > 0 ? (
+        <details className="rounded-[20px] border border-dark bg-surface p-4">
+          <summary className="cursor-pointer font-medium">
+            Histórico do escopo ({project.scopeVersions.length}{' '}
+            {project.scopeVersions.length === 1 ? 'versão' : 'versões'})
+          </summary>
+          <ol className="mt-4 flex flex-col gap-4">
+            {project.scopeVersions.map((version) => (
+              <li key={version.version} className="flex flex-col gap-3 rounded-[14px] bg-bg p-4">
+                <p className="text-sm text-muted">
+                  Versão {version.version} · {version.createdBy} ·{' '}
+                  {dateTime.format(new Date(version.createdAt))}
+                </p>
+                <ScopeView scope={version.scope} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+    </>
   );
 }

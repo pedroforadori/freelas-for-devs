@@ -5,6 +5,7 @@ import type {
   Estimate,
   ProjectStatus,
   ProjectType,
+  Scope,
 } from '@f4d/contracts';
 import {
   boolean,
@@ -45,6 +46,14 @@ export const projects = pgTable(
     clarification: jsonb().$type<ClarificationRecord>(),
     estimate: jsonb().$type<Estimate>(),
     estimateFailed: boolean().notNull().default(false),
+    /** Versão atual do escopo (cópia da última linha de scope_versions, para leitura e métricas). */
+    scope: jsonb().$type<Scope>(),
+    scopeVersion: integer().notNull().default(0),
+    scopingStartedAt: timestamp({ withTimezone: true }),
+    scopeApprovedAt: timestamp({ withTimezone: true }),
+    scopeApprovedBy: uuid().references(() => users.id),
+    rejectionReason: text(),
+    rejectedAt: timestamp({ withTimezone: true }),
     cancelReason: text(),
     cancelledAt: timestamp({ withTimezone: true }),
     version: integer().notNull().default(0),
@@ -91,4 +100,21 @@ export const aiEstimationRuns = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('ai_estimation_runs_project_idx').on(table.projectId, table.createdAt)],
+);
+
+/** Histórico imutável do escopo: cada "salvar" do especialista é uma versão nova. */
+export const scopeVersions = pgTable(
+  'scope_versions',
+  {
+    projectId: uuid()
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    version: integer().notNull(),
+    scope: jsonb().$type<Scope>().notNull(),
+    createdBy: uuid()
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.version] })],
 );

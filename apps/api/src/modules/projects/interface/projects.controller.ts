@@ -7,6 +7,7 @@ import {
   type CursorPage,
   type Project as ProjectDto,
   type ProjectSummary,
+  type ScopingMetrics,
 } from '@f4d/contracts';
 import { z } from 'zod';
 import type { RequestMeta } from '../../../shared/application/audit-log.js';
@@ -27,7 +28,9 @@ import {
   AnswerClarifications,
   CancelProject,
   CreateProject,
+  ManageScope,
   ReadMyProjects,
+  ReadScopingMetrics,
 } from '../application/use-cases.js';
 import type { Project } from '../domain/project.js';
 
@@ -89,6 +92,12 @@ class ProjectPresenter {
           }
         : null,
       estimateUnavailable: s.estimateFailed,
+      // O cliente vê o escopo só depois de aprovado (o rascunho do especialista é interno).
+      scope:
+        s.scope && s.scopeApprovedAt
+          ? (({ levelSlug: _level, ...visible }) => visible)(s.scope)
+          : null,
+      rejectionReason: s.rejectionReason,
       createdAt: s.createdAt.toISOString(),
       updatedAt: s.updatedAt.toISOString(),
     };
@@ -96,14 +105,24 @@ class ProjectPresenter {
 
   async forAdmin(project: Project): Promise<AdminProjectDetail> {
     const s = project.toSnapshot();
-    const [dto, person, runs] = await Promise.all([
+    const [dto, person, runs, versions] = await Promise.all([
       this.forClient(project),
       this.deps.people.find(s.clientId),
       this.deps.aiRuns.list(s.id),
+      this.deps.queries.listScopeVersions(s.id),
     ]);
     return {
       ...dto,
       estimate: s.estimate,
+      scope: s.scope,
+      scopeVersions: versions.map((version) => ({
+        version: version.version,
+        scope: version.scope,
+        createdBy: version.createdBy,
+        createdAt: version.createdAt.toISOString(),
+      })),
+      scopingStartedAt: s.scopingStartedAt?.toISOString() ?? null,
+      scopeApprovedAt: s.scopeApprovedAt?.toISOString() ?? null,
       client: {
         userId: s.clientId,
         displayName: person?.displayName ?? '',
@@ -203,6 +222,8 @@ export class AdminProjectsController {
   constructor(
     @Inject(PROJECTS_DEPS) deps: ProjectsDeps,
     private readonly adminProjects: AdminReadProjects,
+    private readonly manageScope: ManageScope,
+    private readonly metrics: ReadScopingMetrics,
   ) {
     this.presenter = new ProjectPresenter(deps);
   }
@@ -224,5 +245,55 @@ export class AdminProjectsController {
     @ValidRequest() { params }: ContractRequest<typeof routes.adminGetProject>,
   ): Promise<AdminProjectDetail> {
     return this.presenter.forAdmin(await this.adminProjects.get(params.projectId));
+  }
+
+  @ContractRoute(routes.adminSaveScope)
+  async saveScope(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.adminSaveScope>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+  ): Promise<AdminProjectDetail> {
+    const scope = { ...body, notesForFreelancers: body.notesForFreelancers ?? null };
+    return this.presenter.forAdmin(
+      await this.manageScope.save(principal.userId, params.projectId, scope, meta),
+    );
+  }
+
+  @ContractRoute(routes.adminApproveScope)
+  async approve(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.adminApproveScope>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+  ): Promise<AdminProjectDetail> {
+    return this.presenter.forAdmin(
+      await this.manageScope.approve(principal.userId, params.projectId, body.version, meta),
+    );
+  }
+
+  @ContractRoute(routes.adminRejectProject)
+  async reject(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.adminRejectProject>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+  ): Promise<AdminProjectDetail> {
+    return this.presenter.forAdmin(
+      await this.manageScope.reject(principal.userId, params.projectId, body.reason, meta),
+    );
+  }
+
+  @ContractRoute(routes.adminReopenScope)
+  async reopen(
+    @ValidRequest() { params }: ContractRequest<typeof routes.adminReopenScope>,
+    @CurrentPrincipal() principal: Principal,
+    @RequestContext() meta: RequestMeta,
+  ): Promise<AdminProjectDetail> {
+    return this.presenter.forAdmin(
+      await this.manageScope.reopen(principal.userId, params.projectId, meta),
+    );
+  }
+
+  @ContractRoute(routes.adminScopingMetrics)
+  scopingMetrics(): Promise<ScopingMetrics> {
+    return this.metrics.execute();
   }
 }
