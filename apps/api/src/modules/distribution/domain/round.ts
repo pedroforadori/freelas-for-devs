@@ -45,6 +45,7 @@ export const RoundEvents = {
   InvitationCreated: 'distribution.InvitationCreated',
   ProposalSubmitted: 'distribution.ProposalSubmitted',
   ProposalSelected: 'distribution.ProposalSelected',
+  SelectionReverted: 'distribution.SelectionReverted',
   Exhausted: 'distribution.RoundExhausted',
   Closed: 'distribution.RoundClosed',
   Cancelled: 'distribution.RoundCancelled',
@@ -248,11 +249,39 @@ export class DistributionRound extends AggregateRoot {
       }
     }
     this.props.status = 'SELECTED';
+    const proposal = chosen.proposal!;
     this.record(RoundEvents.ProposalSelected, now, {
       roundId: this.id,
       projectId: this.props.projectId,
+      clientId: this.props.clientId,
       invitationId,
       freelancerId: chosen.freelancerId,
+      amountCents: proposal.amountCents,
+      deadlineDays: proposal.deadlineDays,
+    });
+    return effects;
+  }
+
+  /**
+   * Pagamento não veio no prazo (F6): a escolha é desfeita sem penalizar ninguém — o escolhido
+   * ganha prioridade, as propostas em espera voltam a valer e a rodada reabre.
+   */
+  revertSelection(now: Date): QueueEffect[] {
+    if (this.props.status !== 'SELECTED')
+      throw new InvalidStateTransitionError('DistributionRound', this.props.status, 'revert');
+    const effects: QueueEffect[] = [];
+    for (const invitation of this.invitations) {
+      if (invitation.status === 'SELECTED_PENDING_PAYMENT') {
+        invitation.apply('void', now);
+        effects.push({ kind: 'compensate', freelancerId: invitation.freelancerId });
+      } else if (invitation.status === 'ON_HOLD') {
+        invitation.apply('release', now);
+      }
+    }
+    this.props.status = 'OPEN';
+    this.record(RoundEvents.SelectionReverted, now, {
+      roundId: this.id,
+      projectId: this.props.projectId,
     });
     return effects;
   }

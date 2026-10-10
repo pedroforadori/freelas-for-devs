@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { RequireAuth } from '@/features/auth/require-auth';
 import { ProjectDetail } from '@/features/projects/project-detail';
 
@@ -8,7 +9,9 @@ export default async function Page({ params }: { params: Promise<{ projectId: st
   const { projectId } = await params;
   return (
     <RequireAuth roles={['CLIENT']}>
-      <ProjectDetail projectId={projectId} />
+      <Suspense>
+        <ProjectDetail projectId={projectId} />
+      </Suspense>
     </RequireAuth>
   );
 }

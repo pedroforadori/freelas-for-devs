@@ -16,6 +16,7 @@ export function AppHeader() {
     { href: '/convites', label: 'Convites', show: hasRole(me, 'FREELANCER') },
     { href: '/perfil', label: 'Perfil', show: hasRole(me, 'FREELANCER') || hasRole(me, 'CLIENT') },
     { href: '/admin/projetos', label: 'Admin', show: hasRole(me, 'ADMIN') },
+    { href: '/conta/recebimentos', label: 'Recebimentos', show: hasRole(me, 'FREELANCER') },
     { href: '/conta/seguranca', label: 'Segurança', show: true },
   ].filter((link) => link.show);
   // "Admin" fica ativo em qualquer seção administrativa.

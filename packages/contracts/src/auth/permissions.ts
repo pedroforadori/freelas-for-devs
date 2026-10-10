@@ -29,6 +29,8 @@ export const Permission = {
   FilesUpload: 'files:upload',
   ProjectsClientWrite: 'projects:client:write',
   ProposalsFreelancerWrite: 'proposals:freelancer:write',
+  ContractsParticipate: 'contracts:participate',
+  PayoutsManage: 'payouts:freelancer:manage',
   AdminUsersRead: 'admin:users:read',
   AdminFreelancersReview: 'admin:freelancers:review',
   AdminProjectsRead: 'admin:projects:read',
@@ -41,11 +43,18 @@ export type Permission = (typeof Permission)[keyof typeof Permission];
 export const permissionSchema = z.enum(Object.values(Permission) as [Permission, ...Permission[]]);
 
 export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
-  CLIENT: [Permission.ProfileClientWrite, Permission.FilesUpload, Permission.ProjectsClientWrite],
+  CLIENT: [
+    Permission.ProfileClientWrite,
+    Permission.FilesUpload,
+    Permission.ProjectsClientWrite,
+    Permission.ContractsParticipate,
+  ],
   FREELANCER: [
     Permission.ProfileFreelancerWrite,
     Permission.FilesUpload,
     Permission.ProposalsFreelancerWrite,
+    Permission.ContractsParticipate,
+    Permission.PayoutsManage,
   ],
   ADMIN: [
     Permission.FilesUpload,

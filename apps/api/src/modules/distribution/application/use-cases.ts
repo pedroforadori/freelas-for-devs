@@ -300,6 +300,22 @@ export class FinalizeHiring extends DistributionUseCase {
   }
 }
 
+/** Prazo de pagamento vencido (F6): o cliente volta a escolher; vagas abertas são repostas. */
+export class RevertSelection extends DistributionUseCase {
+  async execute(projectId: string): Promise<void> {
+    const notices: Notice[] = [];
+    await this.deps.uow.run(async () => {
+      const round = await this.deps.rounds.findActiveByProject(projectId);
+      if (round?.status !== 'SELECTED') return;
+      await this.applyEffects(round, round.revertSelection(this.deps.clock.now()));
+      await this.deps.projects.revertHiring(projectId);
+      await this.fill(round, notices);
+      await this.deps.rounds.save(round);
+    });
+    await this.notify(notices);
+  }
+}
+
 /** Projeto cancelado pelo cliente: encerra a rodada e devolve a vez a quem tinha proposta. */
 export class CancelProjectRound extends DistributionUseCase {
   execute(projectId: string): Promise<void> {

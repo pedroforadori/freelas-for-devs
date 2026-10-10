@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { infrastructureModules } from './app.module.js';
+import { ContractsWorkerModule } from './modules/contracts/contracts.module.js';
 import { DistributionWorkerModule } from './modules/distribution/distribution.module.js';
 import { FilesWorkerModule } from './modules/files/files.module.js';
 import { ProjectsWorkerModule } from './modules/projects/projects.module.js';
@@ -24,6 +25,7 @@ import { DomainEventsWorkerModule } from './shared/infra/queue/domain-events.pro
     FilesWorkerModule,
     ProjectsWorkerModule,
     DistributionWorkerModule,
+    ContractsWorkerModule,
   ],
 })
 export class WorkerModule {}

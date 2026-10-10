@@ -18,6 +18,7 @@ import { errorMessage } from '@/lib/problem';
 import { ClarificationForm } from './clarification-form';
 import { dateTime, formatDuration, formatFileSize, formatPriceRange } from './format';
 import { useProject, useSetProject } from './queries';
+import { InProgressCard, PaymentCard } from '@/features/contracts/contract-cards';
 import { ProposalsPanel } from './proposals-panel';
 import { ScopeView } from './scope-view';
 
@@ -50,7 +51,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         </details>
       ) : null}
       <ProjectInfo project={project} />
-      {project.status !== 'CANCELLED' && project.status !== 'REJECTED' ? (
+      {project.status !== 'CANCELLED' &&
+      project.status !== 'REJECTED' &&
+      project.status !== 'IN_PROGRESS' ? (
         <CancelProject project={project} />
       ) : null}
     </>
@@ -104,8 +107,16 @@ function StatusPanel({ project }: { project: Project }) {
         </Card>
       ) : null;
     case 'DISTRIBUTING':
-    case 'HIRING':
       return <ProposalsPanel project={project} />;
+    case 'HIRING':
+      return (
+        <>
+          <PaymentCard project={project} />
+          <ProposalsPanel project={project} />
+        </>
+      );
+    case 'IN_PROGRESS':
+      return <InProgressCard project={project} viewer="client" />;
     case 'NO_CANDIDATES':
       return (
         <Alert title="Ainda não encontramos devs disponíveis">

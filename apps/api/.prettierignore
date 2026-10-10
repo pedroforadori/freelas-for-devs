@@ -1,0 +1,3 @@
+# Gerados pelo drizzle-kit: nunca reformatar (vale também ao rodar o prettier a partir daqui).
+src/db/migrations/meta
+dist

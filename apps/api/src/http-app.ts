@@ -60,6 +60,8 @@ export const configureHttpApp = async (
 export const createHttpApp = async (): Promise<NestFastifyApplication> => {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, createFastifyAdapter(), {
     bufferLogs: true,
+    // Webhooks de pagamento verificam a assinatura sobre o corpo cru.
+    rawBody: true,
   });
   return configureHttpApp(app);
 };

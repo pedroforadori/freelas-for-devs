@@ -122,7 +122,9 @@ export const createTestApp = async (
   const moduleRef = await builder.compile();
 
   const app = await configureHttpApp(
-    moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter()),
+    moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter(), {
+      rawBody: true,
+    }),
   );
   await app.init();
   await app.getHttpAdapter().getInstance().ready();

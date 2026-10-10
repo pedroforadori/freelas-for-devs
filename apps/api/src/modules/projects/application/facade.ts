@@ -48,6 +48,14 @@ export class ProjectsFacade {
     return this.change(projectId, (project, now) => project.hire(invitationId, now));
   }
 
+  startWork(projectId: string): Promise<void> {
+    return this.change(projectId, (project, now) => project.startWork(now));
+  }
+
+  revertHiring(projectId: string): Promise<void> {
+    return this.change(projectId, (project, now) => project.revertHiring(now));
+  }
+
   private change(projectId: string, apply: (project: Project, now: Date) => void): Promise<void> {
     return this.deps.uow.run(async () => {
       const project = await this.deps.projects.find(projectId);

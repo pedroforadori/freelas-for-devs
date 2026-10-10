@@ -39,6 +39,7 @@ describe('loadEnv', () => {
       expect(message).toContain('COOKIE_SECURE');
       expect(message).toContain('MAIL_TRANSPORT');
       expect(message).toContain('ESTIMATOR');
+      expect(message).toContain('PAYMENTS_PROVIDER');
     }
   });
 
@@ -48,6 +49,21 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...valid, ESTIMATOR: 'gemini', GEMINI_API_KEY: 'k' }).GEMINI_MODEL).toBe(
       'gemini-3.8-flash',
     );
+  });
+
+  it('requires Stripe keys to use the real payment provider', () => {
+    expect(() => loadEnv({ ...valid, PAYMENTS_PROVIDER: 'stripe' })).toThrow(
+      'STRIPE_WEBHOOK_SECRET',
+    );
+    expect(
+      loadEnv({
+        ...valid,
+        PAYMENTS_PROVIDER: 'stripe',
+        STRIPE_SECRET_KEY: 'sk_test_x',
+        STRIPE_WEBHOOK_SECRET: 'whsec_x',
+        STRIPE_PAYMENT_METHODS: 'card, pix',
+      }).STRIPE_PAYMENT_METHODS,
+    ).toEqual(['card', 'pix']);
   });
 
   it('rejects wildcard CORS', () => {

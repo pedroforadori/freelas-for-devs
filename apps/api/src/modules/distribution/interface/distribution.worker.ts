@@ -11,7 +11,9 @@ import type { DomainEvent } from '../../../shared/kernel/domain-event.js';
 import {
   CancelProjectRound,
   ExpireOverdueInvitations,
+  FinalizeHiring,
   OpenRound,
+  RevertSelection,
   SyncQueueEntry,
 } from '../application/use-cases.js';
 
@@ -21,6 +23,8 @@ export const DistributionEventTypes = {
   LevelChanged: 'profiles.FreelancerLevelChanged',
   ScopeApproved: 'projects.ScopeApproved',
   ProjectCancelled: 'projects.ProjectCancelled',
+  ContractFunded: 'contracts.ContractFunded',
+  ContractExpired: 'contracts.ContractExpired',
 } as const;
 
 @Injectable()
@@ -30,6 +34,8 @@ export class DistributionEventHandler implements DomainEventHandler {
     @Inject(SyncQueueEntry) private readonly sync: SyncQueueEntry,
     @Inject(OpenRound) private readonly openRound: OpenRound,
     @Inject(CancelProjectRound) private readonly cancelRound: CancelProjectRound,
+    @Inject(FinalizeHiring) private readonly finalize: FinalizeHiring,
+    @Inject(RevertSelection) private readonly revert: RevertSelection,
   ) {}
 
   async handle(event: DomainEvent): Promise<void> {
@@ -46,6 +52,12 @@ export class DistributionEventHandler implements DomainEventHandler {
         break;
       case DistributionEventTypes.ProjectCancelled:
         await this.cancelRound.execute(String(payload.projectId));
+        break;
+      case DistributionEventTypes.ContractFunded:
+        await this.finalize.execute(String(payload.projectId));
+        break;
+      case DistributionEventTypes.ContractExpired:
+        await this.revert.execute(String(payload.projectId));
         break;
     }
   }

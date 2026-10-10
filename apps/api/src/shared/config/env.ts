@@ -121,6 +121,18 @@ export const envSchema = z
     /** Tempo máximo de uma chamada à IA; o job é repetido em caso de falha. */
     ESTIMATOR_TIMEOUT_MS: z.coerce.number().int().min(5_000).default(60_000),
 
+    /**
+     * Pagamentos (ADR-0008): `stripe` em produção; `fake` simula checkout e webhooks em
+     * desenvolvimento e testes, sem conta no provedor.
+     */
+    PAYMENTS_PROVIDER: z.enum(['stripe', 'fake']).default('fake'),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    /** Meios do checkout, separados por vírgula (ex.: `card,pix`, conforme habilitado na conta). */
+    STRIPE_PAYMENT_METHODS: csv.default(['card']),
+    /** Segredo do webhook simulado (provedor fake). */
+    FAKE_PAYMENTS_WEBHOOK_SECRET: z.string().default('fake-webhook-secret'),
+
     MAIL_TRANSPORT: z.enum(['log', 'smtp', 'resend']).default('log'),
     MAIL_FROM: z.string().default('Freelas 4 Devs <nao-responda@freelas4devs.com.br>'),
     SMTP_URL: z.url({ protocol: /^smtps?$/ }).optional(),
@@ -139,7 +151,23 @@ export const envSchema = z
         path: ['ANTHROPIC_API_KEY'],
         message: 'obrigatório com ESTIMATOR=anthropic',
       });
+    if (env.PAYMENTS_PROVIDER === 'stripe') {
+      for (const key of ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] as const) {
+        if (!env[key])
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'obrigatório com PAYMENTS_PROVIDER=stripe',
+          });
+      }
+    }
     if (env.NODE_ENV !== 'production') return;
+    if (env.PAYMENTS_PROVIDER !== 'stripe')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PAYMENTS_PROVIDER'],
+        message: 'o provedor simulado não cobra de verdade',
+      });
     if (env.ESTIMATOR === 'heuristic')
       ctx.addIssue({
         code: 'custom',

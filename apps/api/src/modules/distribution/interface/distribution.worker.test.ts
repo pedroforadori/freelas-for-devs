@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DomainEvent } from '../../../shared/kernel/domain-event.js';
 import { ProfileEvents } from '../../profiles/domain/freelancer-profile.js';
+import { ContractEvents } from '../../contracts/domain/contract.js';
 import { ProjectEvents } from '../../projects/domain/project.js';
-import type { CancelProjectRound, OpenRound, SyncQueueEntry } from '../application/use-cases.js';
+import type {
+  CancelProjectRound,
+  FinalizeHiring,
+  OpenRound,
+  RevertSelection,
+  SyncQueueEntry,
+} from '../application/use-cases.js';
 import { DistributionEventHandler, DistributionEventTypes } from './distribution.worker.js';
 
 const event = (type: string, payload: Record<string, unknown>): DomainEvent => ({
@@ -21,6 +28,8 @@ describe('DistributionEventHandler', () => {
       LevelChanged: ProfileEvents.LevelChanged,
       ScopeApproved: ProjectEvents.ScopeApproved,
       ProjectCancelled: ProjectEvents.Cancelled,
+      ContractFunded: ContractEvents.Funded,
+      ContractExpired: ContractEvents.Expired,
     });
   });
 
@@ -32,6 +41,8 @@ describe('DistributionEventHandler', () => {
       sync as unknown as SyncQueueEntry,
       open as unknown as OpenRound,
       cancel as unknown as CancelProjectRound,
+      { execute: vi.fn() } as unknown as FinalizeHiring,
+      { execute: vi.fn() } as unknown as RevertSelection,
     );
     await handler.handle(event(ProfileEvents.Approved, { userId: 'u1', level: 'iniciante' }));
     await handler.handle(

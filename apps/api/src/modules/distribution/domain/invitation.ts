@@ -11,6 +11,7 @@ type InvitationEvent =
   | 'hold'
   | 'hire'
   | 'notSelect'
+  | 'release'
   | 'void';
 
 /** Ciclo do convite e da proposta (docs/architecture.md §4.2). */
@@ -33,7 +34,8 @@ export const invitationMachine = defineStateMachine<InvitationStatus, Invitation
       void: 'VOIDED',
     },
     SELECTED_PENDING_PAYMENT: { hire: 'HIRED', void: 'VOIDED' },
-    ON_HOLD: { notSelect: 'NOT_SELECTED', void: 'VOIDED' },
+    // Pagamento do escolhido não veio: as propostas em espera voltam a valer.
+    ON_HOLD: { notSelect: 'NOT_SELECTED', release: 'PROPOSAL_SUBMITTED', void: 'VOIDED' },
     DECLINED: {},
     EXPIRED: {},
     WITHDRAWN: {},

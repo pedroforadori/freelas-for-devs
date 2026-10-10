@@ -108,6 +108,7 @@ export interface ProjectGateway {
   startDistribution(projectId: string): Promise<void>;
   exhaustCandidates(projectId: string): Promise<void>;
   hire(projectId: string, invitationId: string): Promise<void>;
+  revertHiring(projectId: string): Promise<void>;
 }
 
 export interface PeopleDirectory {

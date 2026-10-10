@@ -20,6 +20,7 @@ import { ScopeView } from '@/features/projects/scope-view';
 import { dateTime, formatDuration, formatPriceRange } from '@/features/projects/format';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
+import { ContractSection } from './contract-section';
 import { DistributionSection } from './distribution-section';
 import { ScopeEditor } from './scope-editor';
 
@@ -120,6 +121,7 @@ export function ProjectReview({ projectId }: { projectId: string }) {
 
       <ScopeSection project={project} />
       <DistributionSection projectId={project.id} />
+      <ContractSection projectId={project.id} />
       <AiRuns runs={project.aiRuns} />
     </>
   );

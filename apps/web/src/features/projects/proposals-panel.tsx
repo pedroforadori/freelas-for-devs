@@ -50,7 +50,7 @@ export function ProposalsPanel({ project }: { project: Project }) {
         </h2>
         <p className="text-body">
           {hiring
-            ? 'O próximo passo é o pagamento, que fica em custódia na plataforma até você aprovar a entrega final. (Pagamentos chegam na próxima etapa da plataforma.)'
+            ? 'As outras propostas ficam em espera até o pagamento ser confirmado.'
             : awaitingResponses > 0
               ? `${awaitingResponses} dev(s) convidado(s) ainda vão responder. Novas propostas chegam por e-mail.`
               : 'Devs compatíveis são convidados em rodadas; quem recusa passa a vez para o próximo.'}

@@ -242,6 +242,8 @@ describe('Project', () => {
         '  DISTRIBUTING --> CANCELLED: cancel',
         '  NO_CANDIDATES --> SCOPING: reopenScope',
         '  NO_CANDIDATES --> CANCELLED: cancel',
+        '  HIRING --> IN_PROGRESS: startWork',
+        '  HIRING --> DISTRIBUTING: revertHiring',
         '  HIRING --> CANCELLED: cancel',
         '  REJECTED --> [*]',
         '  CANCELLED --> [*]',

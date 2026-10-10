@@ -77,6 +77,8 @@ type ProjectEvent =
   | 'startDistribution'
   | 'exhaustCandidates'
   | 'hire'
+  | 'startWork'
+  | 'revertHiring'
   | 'cancel';
 
 /**
@@ -120,8 +122,10 @@ export const projectMachine = defineStateMachine<
     DISTRIBUTING: { exhaustCandidates: 'NO_CANDIDATES', hire: 'HIRING', cancel: 'CANCELLED' },
     // Sem devs no nível: o especialista ajusta nível/stacks e aprova de novo (nova rodada).
     NO_CANDIDATES: { reopenScope: 'SCOPING', cancel: 'CANCELLED' },
-    // Contratação (pagamento) chega na F6; até lá o cliente ainda pode desistir.
-    HIRING: { cancel: 'CANCELLED' },
+    // Pagamento confirmado → em andamento; prazo de pagamento vencido → volta às propostas.
+    HIRING: { startWork: 'IN_PROGRESS', revertHiring: 'DISTRIBUTING', cancel: 'CANCELLED' },
+    // Entregas, aprovação e disputas chegam na F7/F8.
+    IN_PROGRESS: {},
     REJECTED: {},
     CANCELLED: {},
   },
@@ -139,6 +143,8 @@ export const ProjectEvents = {
   DistributionStarted: 'projects.DistributionStarted',
   NoCandidates: 'projects.NoCandidates',
   HiringStarted: 'projects.HiringStarted',
+  WorkStarted: 'projects.WorkStarted',
+  HiringReverted: 'projects.HiringReverted',
   Rejected: 'projects.ProjectRejected',
   Cancelled: 'projects.ProjectCancelled',
 } as const;
@@ -428,6 +434,20 @@ export class Project extends AggregateRoot {
       clientId: this.props.clientId,
       invitationId,
     });
+  }
+
+  /** Pagamento em custódia: o trabalho começa. */
+  startWork(now: Date): void {
+    this.transition('startWork');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.WorkStarted, now, { projectId: this.id });
+  }
+
+  /** O pagamento não veio no prazo: o cliente volta a escolher entre as propostas. */
+  revertHiring(now: Date): void {
+    this.transition('revertHiring');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.HiringReverted, now, { projectId: this.id });
   }
 
   /** Versões novas desde a última gravação; o repositório as insere no histórico. */

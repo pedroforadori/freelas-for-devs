@@ -23,6 +23,7 @@ import {
   ReadInvitations,
   ReadProjectProposals,
   RespondToInvitation,
+  RevertSelection,
   SelectProposal,
   SyncQueueEntry,
 } from './application/use-cases.js';
@@ -49,6 +50,7 @@ const USE_CASES = [
   SelectProposal,
   FinalizeHiring,
   CancelProjectRound,
+  RevertSelection,
   ReadInvitations,
   ReadProjectProposals,
   ManageQueue,

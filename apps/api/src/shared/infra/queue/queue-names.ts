@@ -5,6 +5,7 @@ export const QueueName = {
   Files: 'files',
   Estimation: 'estimation',
   Distribution: 'distribution',
+  Contracts: 'contracts',
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
