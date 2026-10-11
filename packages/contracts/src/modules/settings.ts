@@ -130,6 +130,22 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'dias' },
     usedFrom: 'F7',
   }),
+  'moderation.warnAfterViolations': define({
+    schema: z.number().int().min(1).max(20),
+    default: 2,
+    label: 'Advertência após tentativas de contato',
+    description: 'Tentativas de passar contato (30 dias) até o usuário receber uma advertência.',
+    input: { kind: 'integer', unit: 'rodadas' },
+    usedFrom: 'F3',
+  }),
+  'moderation.alertAfterViolations': define({
+    schema: z.number().int().min(1).max(50),
+    default: 4,
+    label: 'Alerta ao Admin após tentativas de contato',
+    description: 'A partir daqui o caso aparece em destaque na moderação para decidir a suspensão.',
+    input: { kind: 'integer', unit: 'rodadas' },
+    usedFrom: 'F3',
+  }),
   'delivery.finalCorrectionsMax': define({
     schema: z.number().int().min(0).max(5),
     default: 1,

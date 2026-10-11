@@ -9,6 +9,7 @@ export * from './modules/distribution.js';
 export * from './modules/files.js';
 export * from './modules/health.js';
 export * from './modules/leads.js';
+export * from './modules/messaging.js';
 export * from './modules/profiles.js';
 export * from './modules/projects.js';
 export * from './modules/settings.js';

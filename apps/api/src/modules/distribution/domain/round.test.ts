@@ -134,6 +134,20 @@ describe('DistributionRound', () => {
     expect(round.cancel(now)).toEqual([]);
   });
 
+  it('removes a suspended freelancer and frees the slot', () => {
+    const round = open();
+    invite(round, 'f1', 'f2');
+    round.submitProposal('i-f2', 'f2', proposal, now);
+    expect(round.removeFreelancer('f2', now)).toEqual([
+      { kind: 'voided', freelancerId: 'f2', wasAwaitingResponse: false },
+    ]);
+    expect(round.removeFreelancer('f1', now)).toEqual([
+      { kind: 'voided', freelancerId: 'f1', wasAwaitingResponse: true },
+    ]);
+    expect(round.openSlots()).toBe(2);
+    expect(round.removeFreelancer('f1', now)).toEqual([]);
+  });
+
   it('documents the invitation lifecycle as Mermaid', () => {
     const diagram = invitationMachine.toMermaid();
     expect(diagram).toContain('INVITED --> PROPOSAL_SUBMITTED: submitProposal');

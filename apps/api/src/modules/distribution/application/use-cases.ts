@@ -5,7 +5,12 @@ import { InvitationNotFoundError, RoundNotFoundError } from '../domain/errors.js
 import { QueueEntry } from '../domain/queue-entry.js';
 import { DistributionRound, type QueueEffect } from '../domain/round.js';
 import { invitationEmail, newProposalEmail, selectedEmail } from './emails.js';
-import { type DistributionDeps, type ProjectForDistribution, toClientScope } from './ports.js';
+import {
+  type DistributionDeps,
+  type ProjectForDistribution,
+  type ProposalScreener,
+  toClientScope,
+} from './ports.js';
 
 /** Avisos enviados depois do commit (e-mail nunca participa da transação). */
 type Notice =
@@ -204,6 +209,13 @@ export class OpenRound extends DistributionUseCase {
 }
 
 export class RespondToInvitation extends DistributionUseCase {
+  constructor(
+    deps: DistributionDeps,
+    private readonly screener: ProposalScreener,
+  ) {
+    super(deps);
+  }
+
   decline(freelancerId: string, invitationId: string) {
     return this.change(invitationId, (round, now) => ({
       effects: round.decline(invitationId, freelancerId, now),
@@ -217,8 +229,21 @@ export class RespondToInvitation extends DistributionUseCase {
   }
 
   submitProposal(freelancerId: string, invitationId: string, input: ProposalInput) {
-    return this.change(invitationId, (round, now) => {
-      const { effects, first } = round.submitProposal(invitationId, freelancerId, input, now);
+    return this.change(invitationId, async (round, now) => {
+      // Contato no texto é mascarado (e vira infração) na mesma transação da proposta.
+      const screened = await this.screener.execute({
+        userId: freelancerId,
+        text: input.message,
+        source: 'PROPOSAL',
+        referenceId: invitationId,
+        projectId: round.projectId,
+      });
+      const { effects, first } = round.submitProposal(
+        invitationId,
+        freelancerId,
+        { ...input, message: screened.text },
+        now,
+      );
       const notice: Notice[] = first
         ? [{ kind: 'proposal', projectId: round.projectId, clientId: round.clientId }]
         : [];
@@ -228,12 +253,17 @@ export class RespondToInvitation extends DistributionUseCase {
 
   private async change(
     invitationId: string,
-    apply: (round: DistributionRound, now: Date) => { effects: QueueEffect[]; notices?: Notice[] },
+    apply: (
+      round: DistributionRound,
+      now: Date,
+    ) =>
+      | { effects: QueueEffect[]; notices?: Notice[] }
+      | Promise<{ effects: QueueEffect[]; notices?: Notice[] }>,
   ): Promise<DistributionRound> {
     const notices: Notice[] = [];
     const round = await this.deps.uow.run(async () => {
       const loaded = await this.roundOfInvitation(invitationId);
-      const result = apply(loaded, this.deps.clock.now());
+      const result = await apply(loaded, this.deps.clock.now());
       notices.push(...(result.notices ?? []));
       await this.applyEffects(loaded, result.effects);
       await this.fill(loaded, notices);
@@ -269,6 +299,28 @@ export class ExpireOverdueInvitations extends DistributionUseCase {
       await this.notify(notices);
     }
     return expired;
+  }
+}
+
+/**
+ * Conta suspensa (moderação): sai das rodadas em andamento e as vagas vão para os próximos da
+ * fila. Novos convites já não chegam (a elegibilidade exige conta ativa). Idempotente.
+ */
+export class RemoveSuspendedFreelancer extends DistributionUseCase {
+  async execute(freelancerId: string): Promise<void> {
+    for (const roundId of await this.deps.rounds.activeWithFreelancer(freelancerId)) {
+      const notices: Notice[] = [];
+      await this.deps.uow.run(async () => {
+        const round = await this.deps.rounds.findById(roundId);
+        if (!round) return;
+        const effects = round.removeFreelancer(freelancerId, this.deps.clock.now());
+        if (effects.length === 0) return;
+        await this.applyEffects(round, effects);
+        if (round.status === 'OPEN') await this.fill(round, notices);
+        await this.deps.rounds.save(round);
+      });
+      await this.notify(notices);
+    }
   }
 }
 

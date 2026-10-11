@@ -15,6 +15,7 @@ import { FilesFacade } from '../files/application/use-cases.js';
 import { FilesModule, FilesWorkerModule } from '../files/files.module.js';
 import { ProjectsFacade } from '../projects/application/facade.js';
 import { ProjectsModule, ProjectsWorkerModule } from '../projects/projects.module.js';
+import { ContractsFacade } from './application/facade.js';
 import { CONTRACTS_DEPS, type ContractsDeps, type PaymentGateway } from './application/ports.js';
 import {
   CancelContractForProject,
@@ -80,6 +81,7 @@ const SIMPLE_USE_CASES = [
   ProcessReviewDeadlines,
   ReleasePayment,
   RateFreelancer,
+  ContractsFacade,
 ] as const;
 
 const sharedProviders = [
@@ -168,6 +170,7 @@ const sharedProviders = [
     AdminContractsController,
   ],
   providers: sharedProviders,
+  exports: [ContractsFacade],
 })
 export class ContractsModule {}
 

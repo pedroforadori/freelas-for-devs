@@ -17,6 +17,7 @@ import type { IdGenerator } from '../../shared/kernel/domain-event.js';
 import { ProvisionAdmin } from './application/admin-use-cases.js';
 import { SignInWithOAuth } from './application/oauth-use-cases.js';
 import type { OAuthProvider } from './application/ports.js';
+import { IdentityFacade } from './application/facade.js';
 import { IDENTITY_DEPS, type IdentityDeps } from './application/deps.js';
 import {
   BeginMfaSetup,
@@ -93,6 +94,7 @@ const oauthProviders = (env: Env): OAuthProviderRegistry => {
 };
 
 const USE_CASES = [
+  IdentityFacade,
   RegisterUser,
   LoginWithPassword,
   RefreshSession,
@@ -192,6 +194,6 @@ const USE_CASES = [
       useFactory: (deps: IdentityDeps) => new UseCase(deps),
     })),
   ],
-  exports: [ACCESS_TOKEN_VERIFIER, AUTH_COOKIES],
+  exports: [ACCESS_TOKEN_VERIFIER, AUTH_COOKIES, IdentityFacade],
 })
 export class IdentityModule {}

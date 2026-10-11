@@ -7,6 +7,7 @@ import { AppModule } from './app.module.js';
 import { ENV } from './shared/config/config.module.js';
 import type { Env } from './shared/config/env.js';
 import { REQUEST_ID_HEADER, resolveRequestId } from './shared/infra/logger/request-id.js';
+import { AppIoAdapter } from './shared/infra/realtime/socket-io.adapter.js';
 
 export const createFastifyAdapter = (): FastifyAdapter =>
   new FastifyAdapter({
@@ -24,6 +25,7 @@ export const createFastifyAdapter = (): FastifyAdapter =>
  */
 export const configureHttpApp = async (
   app: NestFastifyApplication,
+  options: { realtimeRedis?: boolean } = {},
 ): Promise<NestFastifyApplication> => {
   app.useLogger(app.get(Logger));
   const env = app.get<Env>(ENV);
@@ -45,6 +47,12 @@ export const configureHttpApp = async (
     maxAge: 600,
   });
 
+  // Chat em tempo real (Socket.IO) no mesmo servidor HTTP. Com várias réplicas, o adapter Redis
+  // entrega as mensagens aos sockets conectados em qualquer uma delas.
+  const io = new AppIoAdapter(app, env.CORS_ORIGINS);
+  if (options.realtimeRedis) io.connectToRedis(env.REDIS_URL);
+  app.useWebSocketAdapter(io);
+
   app
     .getHttpAdapter()
     .getInstance()
@@ -63,5 +71,5 @@ export const createHttpApp = async (): Promise<NestFastifyApplication> => {
     // Webhooks de pagamento verificam a assinatura sobre o corpo cru.
     rawBody: true,
   });
-  return configureHttpApp(app);
+  return configureHttpApp(app, { realtimeRedis: true });
 };

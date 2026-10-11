@@ -29,6 +29,8 @@ export interface RoundRepository {
   /** Rodadas abertas com convites vencidos (reconciliador de prazos). */
   withOverdueInvitations(now: Date, limit: number): Promise<string[]>;
   findById(roundId: string): Promise<DistributionRound | null>;
+  /** Rodadas em andamento com convite, proposta ou espera do freelancer. */
+  activeWithFreelancer(freelancerId: string): Promise<string[]>;
 }
 
 export interface CandidateQuery {
@@ -138,6 +140,17 @@ export interface DistributionDeps {
 }
 
 export const DISTRIBUTION_DEPS = Symbol('DISTRIBUTION_DEPS');
+
+/** Triagem de contato no texto da proposta (API pública do módulo de mensagens). */
+export interface ProposalScreener {
+  execute(input: {
+    userId: string;
+    text: string;
+    source: 'PROPOSAL';
+    referenceId: string;
+    projectId: string;
+  }): Promise<{ text: string; masked: boolean }>;
+}
 
 /** Escopo visível ao freelancer convidado (sem o nível interno). */
 export const toClientScope = (scope: Scope): ClientScope => {

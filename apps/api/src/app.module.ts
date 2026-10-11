@@ -8,6 +8,7 @@ import { FilesModule } from './modules/files/files.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
+import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
@@ -56,6 +57,7 @@ export const infrastructureModules = [
     SettingsModule,
     DistributionModule,
     ContractsModule,
+    MessagingModule,
   ],
   controllers: [OpenApiController],
   providers: [

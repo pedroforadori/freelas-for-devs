@@ -158,6 +158,21 @@ export class DrizzleRoundRepository implements RoundRepository {
     return rows.map((row) => row.roundId);
   }
 
+  async activeWithFreelancer(freelancerId: string): Promise<string[]> {
+    const rows = await this.ctx.executor
+      .selectDistinct({ roundId: invitations.roundId })
+      .from(invitations)
+      .innerJoin(distributionRounds, eq(distributionRounds.id, invitations.roundId))
+      .where(
+        and(
+          eq(invitations.freelancerId, freelancerId),
+          inArray(invitations.status, ['INVITED', 'PROPOSAL_SUBMITTED', 'ON_HOLD']),
+          inArray(distributionRounds.status, ['OPEN', 'SELECTED']),
+        ),
+      );
+    return rows.map((row) => row.roundId);
+  }
+
   save(round: DistributionRound): Promise<void> {
     return this.ctx.run(async () => {
       const db = this.ctx.executor;

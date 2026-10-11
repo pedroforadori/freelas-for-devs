@@ -16,5 +16,9 @@
 | 0012 | [Comissão customizável e plano do freelancer gratuito no MVP](./0012-monetizacao-mvp.md)        | Aceito                      |
 | 0013 | [Estimativa de projetos com IA assíncrona e revisada por humano](./0013-estimativa-ia.md)       | Aceito (provedor: ver 0014) |
 | 0014 | [Gemini como provedor padrão da estimativa](./0014-gemini-estimativa.md)                        | Aceito                      |
+| 0015 | [Implementação da fila justa (F5)](./0015-distribuicao-implementacao.md)                        | Aceito                      |
+| 0016 | [Contratação, pagamento em custódia e razão contábil (F6)](./0016-pagamentos-custodia.md)       | Aceito                      |
+| 0017 | [Entregas em rodadas, aprovação e liberação do pagamento (F7)](./0017-entregas-liberacao.md)    | Aceito                      |
+| 0018 | [Chat em tempo real e moderação de contato (F3)](./0018-chat-moderacao.md)                      | Aceito                      |
 
 Novo ADR: copie o formato acima, numere sequencialmente e nunca edite a decisão de um ADR aceito. Para mudar uma decisão, crie um ADR que a substitua.

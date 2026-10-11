@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DomainEvent } from '../../../shared/kernel/domain-event.js';
 import { ProfileEvents } from '../../profiles/domain/freelancer-profile.js';
 import { ContractEvents } from '../../contracts/domain/contract.js';
+import { UserEvents } from '../../identity/domain/user.js';
 import { ProjectEvents } from '../../projects/domain/project.js';
 import type {
   CancelProjectRound,
   FinalizeHiring,
   OpenRound,
+  RemoveSuspendedFreelancer,
   RevertSelection,
   SyncQueueEntry,
 } from '../application/use-cases.js';
@@ -30,6 +32,7 @@ describe('DistributionEventHandler', () => {
       ProjectCancelled: ProjectEvents.Cancelled,
       ContractFunded: ContractEvents.Funded,
       ContractExpired: ContractEvents.Expired,
+      UserSuspended: UserEvents.Suspended,
     });
   });
 
@@ -37,12 +40,14 @@ describe('DistributionEventHandler', () => {
     const sync = { execute: vi.fn() };
     const open = { execute: vi.fn() };
     const cancel = { execute: vi.fn() };
+    const removeSuspended = { execute: vi.fn() };
     const handler = new DistributionEventHandler(
       sync as unknown as SyncQueueEntry,
       open as unknown as OpenRound,
       cancel as unknown as CancelProjectRound,
       { execute: vi.fn() } as unknown as FinalizeHiring,
       { execute: vi.fn() } as unknown as RevertSelection,
+      removeSuspended as unknown as RemoveSuspendedFreelancer,
     );
     await handler.handle(event(ProfileEvents.Approved, { userId: 'u1', level: 'iniciante' }));
     await handler.handle(
@@ -56,5 +61,7 @@ describe('DistributionEventHandler', () => {
     ]);
     expect(open.execute).toHaveBeenCalledWith('p1');
     expect(cancel.execute).toHaveBeenCalledWith('p1');
+    await handler.handle(event(UserEvents.Suspended, { userId: 'u2' }));
+    expect(removeSuspended.execute).toHaveBeenCalledWith('u2');
   });
 });

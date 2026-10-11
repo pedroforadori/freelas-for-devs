@@ -2,6 +2,7 @@
 
 import { unwrap } from '@f4d/api-client';
 import {
+  CONTRACT_CHAT_STATUSES,
   type Contract,
   CONTRACT_STATUS_LABELS,
   DELIVERY_LIMITS,
@@ -24,6 +25,7 @@ import { api } from '@/lib/api';
 import { compact } from '@/lib/compact';
 import { errorMessage } from '@/lib/problem';
 import { UploadRejectedError, uploadFile } from '@/lib/upload';
+import { ChatPanel } from '@/features/messaging/chat-panel';
 import { AmountsTable } from './contract-cards';
 
 const contractKey = (contractId: string) => ['contracts', contractId] as const;
@@ -69,6 +71,18 @@ export function ContractWorkspace({ contractId }: { contractId: string }) {
       </div>
 
       <NextStep contract={contract} viewer={viewer} />
+
+      {CONTRACT_CHAT_STATUSES.includes(contract.status) ? (
+        <ChatPanel
+          source={{ kind: 'contract', contractId: contract.id }}
+          title="Conversa do contrato"
+          description={
+            viewer === 'client'
+              ? `Fale com ${contract.freelancer.displayName} sobre o andamento. A equipe acompanha em caso de disputa.`
+              : `Fale com ${contract.client.displayName} sobre o andamento. A equipe acompanha em caso de disputa.`
+          }
+        />
+      ) : null}
 
       {work && work.deliveries.length > 0 ? (
         <section aria-labelledby="deliveries-title" className="flex flex-col gap-4">

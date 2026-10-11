@@ -22,6 +22,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "^7.89.0",
+    "socket.io-client": "4.8.3",
     "uqr": "^0.1.3",
     "zod": "catalog:",
     "zustand": "^5.0.15"

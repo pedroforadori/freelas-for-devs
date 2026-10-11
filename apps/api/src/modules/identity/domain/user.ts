@@ -21,6 +21,8 @@ export const UserEvents = {
   EmailVerified: 'identity.UserEmailVerified',
   PasswordChanged: 'identity.UserPasswordChanged',
   RoleGranted: 'identity.UserRoleGranted',
+  Suspended: 'identity.UserSuspended',
+  Reinstated: 'identity.UserReinstated',
 } as const;
 
 /** Agregado de identidade: credenciais, papéis e situação da conta. Perfis vivem em outro módulo. */
@@ -187,6 +189,21 @@ export class User extends AggregateRoot {
   changePassword(passwordHash: string, now: Date): void {
     this.props.passwordHash = passwordHash;
     this.record(UserEvents.PasswordChanged, now, { userId: this.id });
+  }
+
+  /** Suspensão pela moderação: login e renovação de sessão passam a ser recusados. */
+  suspend(now: Date): boolean {
+    if (this.props.status === 'SUSPENDED') return false;
+    this.props.status = 'SUSPENDED';
+    this.record(UserEvents.Suspended, now, { userId: this.id });
+    return true;
+  }
+
+  reinstate(now: Date): boolean {
+    if (this.props.status === 'ACTIVE') return false;
+    this.props.status = 'ACTIVE';
+    this.record(UserEvents.Reinstated, now, { userId: this.id });
+    return true;
   }
 
   toSnapshot(): UserSnapshot {

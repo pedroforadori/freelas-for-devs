@@ -7,6 +7,7 @@ import {
   type Project,
   PROJECT_STATUS_LABELS,
   PROJECT_TYPE_LABELS,
+  SCOPING_CHAT_STATUSES,
 } from '@f4d/contracts';
 import { Alert } from '@f4d/ui/components/alert';
 import { Badge } from '@f4d/ui/components/badge';
@@ -19,6 +20,7 @@ import { ClarificationForm } from './clarification-form';
 import { dateTime, formatDuration, formatFileSize, formatPriceRange } from './format';
 import { useProject, useSetProject } from './queries';
 import { InProgressCard, PaymentCard } from '@/features/contracts/contract-cards';
+import { ChatPanel } from '@/features/messaging/chat-panel';
 import { ProposalsPanel } from './proposals-panel';
 import { ScopeView } from './scope-view';
 
@@ -42,6 +44,13 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       </div>
 
       <StatusPanel project={project} />
+      {SCOPING_CHAT_STATUSES.includes(project.status) ? (
+        <ChatPanel
+          source={{ kind: 'project', projectId: project.id }}
+          title="Conversa com o especialista"
+          description="Tire dúvidas e combine detalhes do escopo com a nossa equipe antes de o projeto ir para os devs."
+        />
+      ) : null}
       {project.scope && project.status !== 'READY_FOR_QUEUE' ? (
         <details className="rounded-card border border-dark bg-bg p-6 md:p-8">
           <summary className="cursor-pointer text-h4 font-medium">Escopo aprovado</summary>

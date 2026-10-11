@@ -15,6 +15,8 @@ import { FilesFacade } from '../files/application/use-cases.js';
 import { FilesModule, FilesWorkerModule } from '../files/files.module.js';
 import { ProjectsFacade } from '../projects/application/facade.js';
 import { ProjectsModule, ProjectsWorkerModule } from '../projects/projects.module.js';
+import { ScreenText } from '../messaging/application/use-cases.js';
+import { MessagingModule } from '../messaging/messaging.module.js';
 import { DISTRIBUTION_DEPS, type DistributionDeps } from './application/ports.js';
 import {
   CancelProjectRound,
@@ -24,6 +26,7 @@ import {
   OpenRound,
   ReadInvitations,
   ReadProjectProposals,
+  RemoveSuspendedFreelancer,
   RespondToInvitation,
   RevertSelection,
   SelectProposal,
@@ -47,8 +50,8 @@ import {
 const USE_CASES = [
   SyncQueueEntry,
   OpenRound,
-  RespondToInvitation,
   ExpireOverdueInvitations,
+  RemoveSuspendedFreelancer,
   SelectProposal,
   FinalizeHiring,
   CancelProjectRound,
@@ -107,9 +110,18 @@ const sharedProviders = [
 
 /** Fila justa, rodadas, convites e propostas (docs/architecture.md §6). */
 @Module({
-  imports: [ProjectsModule, FilesModule],
+  imports: [ProjectsModule, FilesModule, MessagingModule],
   controllers: [DistributionController, AdminDistributionController],
-  providers: sharedProviders,
+  providers: [
+    ...sharedProviders,
+    // Só o HTTP recebe propostas; o worker não carrega o módulo de mensagens.
+    {
+      provide: RespondToInvitation,
+      inject: [DISTRIBUTION_DEPS, ScreenText],
+      useFactory: (deps: DistributionDeps, screen: ScreenText) =>
+        new RespondToInvitation(deps, screen),
+    },
+  ],
 })
 export class DistributionModule {}
 

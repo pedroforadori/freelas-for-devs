@@ -356,7 +356,7 @@ Prefixo `/v1`. Respostas de erro no formato **RFC 9457 (problem+json)** com `cod
 - **Cron** `deadlines.reconcile` (1 min): processa qualquer `*_deadline_at < now()` ainda pendente (cobre perda de job no Redis). `reputation.nightly`: recalcula scores e sugere promoções de nível.
 - Todos os consumers são **idempotentes** (`jobId` determinístico = `tipo:entidade:versão`, mais checagem de estado antes de agir).
 
-**Detecção de contato (plugável):** porta `ContactDetector.detect(text): Detection[]`, com implementação `CompositeContactDetector` (chain): `NormalizingRegexDetector` (telefone BR com variações como "nove nove", espaços e pontos; e-mail com "arroba"/"ponto"; URLs/domínios; @handles; nomes de apps de mensagem) e, no futuro, `LlmContactDetector`. O `MessageService` mascara antes de persistir e emitir. O original é guardado **cifrado** (AES-GCM, chave no KMS/secret) e acessível apenas pelo Admin com auditoria, com retenção configurável (LGPD).
+**Detecção de contato (plugável):** porta `ContactDetector.detect(text): Detection[]`, com implementação `CompositeContactDetector` (chain): `NormalizingRegexDetector` (telefone BR com variações como "nove nove", espaços e pontos; e-mail com "arroba"/"ponto"; URLs/domínios; @handles; nomes de apps de mensagem) e, no futuro, `LlmContactDetector`. O `MessageService` mascara antes de persistir e emitir. O original é guardado **cifrado** (AES-GCM, chave no KMS/secret) e acessível apenas pelo Admin com auditoria, com retenção configurável (LGPD). _Implementado na F3 (ADR-0018):_ `RegexContactDetector` em `shared/kernel`, triagem `ScreenText` no chat e nas propostas, chat Socket.IO no namespace `/chat` e painel `/admin/moderacao`.
 
 ---
 

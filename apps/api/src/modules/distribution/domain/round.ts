@@ -304,6 +304,24 @@ export class DistributionRound extends AggregateRoot {
     return effects;
   }
 
+  /**
+   * Freelancer suspenso: convites, propostas e esperas dele nesta rodada são anulados (a vaga é
+   * reposta por quem chama). Uma escolha já aguardando pagamento fica para o Admin decidir.
+   */
+  removeFreelancer(freelancerId: string, now: Date): QueueEffect[] {
+    if (this.props.status !== 'OPEN' && this.props.status !== 'SELECTED') return [];
+    const effects: QueueEffect[] = [];
+    for (const invitation of this.invitations) {
+      if (invitation.freelancerId !== freelancerId) continue;
+      const status: InvitationStatus = invitation.status;
+      if (status === 'INVITED' || status === 'PROPOSAL_SUBMITTED' || status === 'ON_HOLD') {
+        invitation.apply('void', now);
+        effects.push({ kind: 'voided', freelancerId, wasAwaitingResponse: status === 'INVITED' });
+      }
+    }
+    return effects;
+  }
+
   /** Fila do nível sem ninguém elegível e nenhuma proposta: o especialista precisa agir. */
   markExhausted(now: Date): void {
     this.assertOpen('exhaust');

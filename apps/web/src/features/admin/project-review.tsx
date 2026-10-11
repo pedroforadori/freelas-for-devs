@@ -2,6 +2,7 @@
 
 import { unwrap } from '@f4d/api-client';
 import {
+  SCOPING_CHAT_STATUSES,
   type AdminProjectDetail,
   DESIRED_DEADLINE_LABELS,
   PROJECT_STATUS_LABELS,
@@ -20,6 +21,7 @@ import { ScopeView } from '@/features/projects/scope-view';
 import { dateTime, formatDuration, formatPriceRange } from '@/features/projects/format';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
+import { ChatPanel } from '@/features/messaging/chat-panel';
 import { ContractSection } from './contract-section';
 import { DistributionSection } from './distribution-section';
 import { ScopeEditor } from './scope-editor';
@@ -120,6 +122,13 @@ export function ProjectReview({ projectId }: { projectId: string }) {
       ) : null}
 
       <ScopeSection project={project} />
+      {SCOPING_CHAT_STATUSES.includes(project.status) ? (
+        <ChatPanel
+          source={{ kind: 'project', projectId: project.id }}
+          title="Conversa com o cliente"
+          description="Você responde como Especialista Freelas 4 Devs."
+        />
+      ) : null}
       <DistributionSection projectId={project.id} />
       <ContractSection projectId={project.id} />
       <AiRuns runs={project.aiRuns} />

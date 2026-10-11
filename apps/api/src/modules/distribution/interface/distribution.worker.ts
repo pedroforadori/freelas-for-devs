@@ -13,6 +13,7 @@ import {
   ExpireOverdueInvitations,
   FinalizeHiring,
   OpenRound,
+  RemoveSuspendedFreelancer,
   RevertSelection,
   SyncQueueEntry,
 } from '../application/use-cases.js';
@@ -25,6 +26,7 @@ export const DistributionEventTypes = {
   ProjectCancelled: 'projects.ProjectCancelled',
   ContractFunded: 'contracts.ContractFunded',
   ContractExpired: 'contracts.ContractExpired',
+  UserSuspended: 'identity.UserSuspended',
 } as const;
 
 @Injectable()
@@ -36,6 +38,7 @@ export class DistributionEventHandler implements DomainEventHandler {
     @Inject(CancelProjectRound) private readonly cancelRound: CancelProjectRound,
     @Inject(FinalizeHiring) private readonly finalize: FinalizeHiring,
     @Inject(RevertSelection) private readonly revert: RevertSelection,
+    @Inject(RemoveSuspendedFreelancer) private readonly removeSuspended: RemoveSuspendedFreelancer,
   ) {}
 
   async handle(event: DomainEvent): Promise<void> {
@@ -58,6 +61,9 @@ export class DistributionEventHandler implements DomainEventHandler {
         break;
       case DistributionEventTypes.ContractExpired:
         await this.revert.execute(String(payload.projectId));
+        break;
+      case DistributionEventTypes.UserSuspended:
+        await this.removeSuspended.execute(String(payload.userId));
         break;
     }
   }
