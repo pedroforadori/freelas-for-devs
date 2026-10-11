@@ -130,6 +130,14 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'dias' },
     usedFrom: 'F7',
   }),
+  'delivery.finalCorrectionsMax': define({
+    schema: z.number().int().min(0).max(5),
+    default: 1,
+    label: 'Correções pontuais na entrega final',
+    description: 'Quantas vezes o cliente pode pedir a correção de um ajuste já combinado.',
+    input: { kind: 'integer', unit: 'rodadas' },
+    usedFrom: 'F7',
+  }),
   'delivery.autoApproveDays': define({
     schema: z.number().int().min(1).max(30),
     default: 7,

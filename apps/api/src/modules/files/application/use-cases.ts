@@ -14,12 +14,18 @@ export interface Requester {
 }
 
 /**
- * Política de leitura: dono ou Admin. Outros acessos (ex.: participantes de um projeto)
- * entram aqui quando os módulos de projeto existirem. Sem acesso → "não encontrado",
- * para não revelar que o arquivo existe.
+ * Política de leitura: dono, Admin ou quem recebeu acesso (anexos do projeto para o freelancer
+ * convidado, arquivos da entrega para o cliente). Sem acesso → "não encontrado", para não revelar
+ * que o arquivo existe.
  */
-const canRead = (requester: Requester, file: StoredFile): boolean =>
-  file.ownerId === requester.userId || requester.roles.includes('ADMIN');
+const canRead = async (
+  requester: Requester,
+  file: StoredFile,
+  grants: FilesDeps['grants'],
+): Promise<boolean> =>
+  file.ownerId === requester.userId ||
+  requester.roles.includes('ADMIN') ||
+  (await grants.has(file.id, requester.userId));
 
 abstract class FilesUseCase {
   constructor(protected readonly deps: FilesDeps) {}
@@ -32,7 +38,7 @@ abstract class FilesUseCase {
 
   protected async loadReadable(requester: Requester, id: string): Promise<StoredFile> {
     const file = await this.deps.files.find(id);
-    if (!file || !canRead(requester, file)) throw new FileNotFoundError();
+    if (!file || !(await canRead(requester, file, this.deps.grants))) throw new FileNotFoundError();
     return file;
   }
 }
@@ -165,5 +171,36 @@ export class ReadFile extends FilesUseCase {
       url,
       expiresAt: new Date(this.deps.clock.now().getTime() + DOWNLOAD_WINDOW_SECONDS * 1000),
     };
+  }
+}
+
+/**
+ * API pública do módulo de arquivos para outros módulos: conferir anexos de um dono e conceder
+ * leitura a outra pessoa. Participa da transação de quem chama.
+ */
+export class FilesFacade extends FilesUseCase {
+  /** Dos ids informados, os do dono com a finalidade dada e não recusados na verificação. */
+  async usableBy(ownerId: string, fileIds: readonly string[], purpose: string): Promise<string[]> {
+    const usable: string[] = [];
+    for (const id of new Set(fileIds)) {
+      const file = await this.deps.files.find(id);
+      if (file?.ownerId === ownerId && file.purpose === purpose && file.status !== 'REJECTED')
+        usable.push(id);
+    }
+    return usable;
+  }
+
+  grant(fileIds: readonly string[], userId: string, reason: string): Promise<void> {
+    return this.deps.grants.grant(fileIds, userId, reason);
+  }
+
+  async describe(fileIds: readonly string[]) {
+    const described = [];
+    for (const id of fileIds) {
+      const file = await this.deps.files.find(id);
+      if (file)
+        described.push({ id, fileName: file.fileName, size: file.size, status: file.status });
+    }
+    return described;
   }
 }

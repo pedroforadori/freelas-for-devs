@@ -3,7 +3,8 @@
 import { unwrap } from '@f4d/api-client';
 import type { Contract, Project } from '@f4d/contracts';
 import { Alert } from '@f4d/ui/components/alert';
-import { Button } from '@f4d/ui/components/button';
+import { Button, buttonClasses } from '@f4d/ui/components/button';
+import Link from 'next/link';
 import { Card } from '@f4d/ui/components/card';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -77,7 +78,7 @@ export function PaymentCard({ project }: { project: Project }) {
 
   // Pagamento confirmado pelo webhook: o projeto passa a "em andamento".
   useEffect(() => {
-    if (contract?.status === 'FUNDED')
+    if (contract?.status === 'ACTIVE')
       void queryClient.invalidateQueries({ queryKey: projectKey(project.id) });
   }, [contract?.status, project.id, queryClient]);
 
@@ -141,7 +142,7 @@ export function PaymentCard({ project }: { project: Project }) {
   );
 }
 
-/** Projeto em andamento: pagamento em custódia e quem está trabalhando. */
+/** Projeto em andamento ou concluído: atalho para a área do contrato. */
 export function InProgressCard({
   project,
   viewer,
@@ -152,24 +153,29 @@ export function InProgressCard({
   const query = useProjectContract(project.id);
   const contract = query.data;
   if (!contract) return null;
+  const done = project.status === 'COMPLETED';
   return (
     <Card tone="accent" className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium tracking-wide uppercase">Pagamento em custódia</p>
+        <p className="text-sm font-medium tracking-wide uppercase">
+          {done ? 'Projeto concluído' : 'Pagamento em custódia'}
+        </p>
         <h2 className="text-h4 font-medium">
-          {viewer === 'client'
-            ? `${contract.freelancer.displayName} está trabalhando no seu projeto`
-            : 'Projeto em andamento'}
+          {done
+            ? 'Entrega final aprovada'
+            : viewer === 'client'
+              ? `${contract.freelancer.displayName} está trabalhando no seu projeto`
+              : 'Projeto em andamento'}
         </h2>
         <p className="text-body">
-          Prazo combinado: {contract.deadlineDays} dias. Pago em{' '}
-          {contract.fundedAt ? dateTime.format(new Date(contract.fundedAt)) : '—'}. As entregas e a
-          liberação do pagamento chegam na próxima etapa da plataforma.
+          {done
+            ? 'Veja as entregas e avalie o trabalho na área do contrato.'
+            : `Prazo combinado: ${contract.deadlineDays} dias. Acompanhe as entregas, revise e peça ajustes na área do contrato.`}
         </p>
       </div>
-      <div className="rounded-[20px] border border-dark bg-bg p-4">
-        <AmountsTable contract={contract} viewer={viewer} />
-      </div>
+      <Link href={`/contratos/${contract.id}`} className={buttonClasses('primary', 'self-start')}>
+        Abrir contrato
+      </Link>
     </Card>
   );
 }

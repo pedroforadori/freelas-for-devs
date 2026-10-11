@@ -53,7 +53,8 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       <ProjectInfo project={project} />
       {project.status !== 'CANCELLED' &&
       project.status !== 'REJECTED' &&
-      project.status !== 'IN_PROGRESS' ? (
+      project.status !== 'IN_PROGRESS' &&
+      project.status !== 'COMPLETED' ? (
         <CancelProject project={project} />
       ) : null}
     </>
@@ -116,6 +117,7 @@ function StatusPanel({ project }: { project: Project }) {
         </>
       );
     case 'IN_PROGRESS':
+    case 'COMPLETED':
       return <InProgressCard project={project} viewer="client" />;
     case 'NO_CANDIDATES':
       return (

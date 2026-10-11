@@ -18,6 +18,7 @@ export const ProjectStatus = {
   NoCandidates: 'NO_CANDIDATES',
   Hiring: 'HIRING',
   InProgress: 'IN_PROGRESS',
+  Completed: 'COMPLETED',
   Rejected: 'REJECTED',
   Cancelled: 'CANCELLED',
 } as const;
@@ -35,6 +36,7 @@ export const PROJECT_STATUS_LABELS: Readonly<Record<ProjectStatus, string>> = {
   NO_CANDIDATES: 'Sem devs disponíveis',
   HIRING: 'Proposta escolhida',
   IN_PROGRESS: 'Em andamento',
+  COMPLETED: 'Concluído',
   REJECTED: 'Recusado',
   CANCELLED: 'Cancelado',
 };

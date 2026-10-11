@@ -73,6 +73,11 @@ export interface PaymentGateway {
   retrieveAccount(
     accountId: string,
   ): Promise<{ detailsSubmitted: boolean; payoutsEnabled: boolean }>;
+  /** Repasse ao freelancer (conta conectada); devolve a referência da transferência. */
+  createTransfer(
+    input: { amountCents: number; destinationAccountId: string; contractId: string },
+    idempotencyKey: string,
+  ): Promise<string>;
 }
 
 export interface ContractRepository {
@@ -81,6 +86,35 @@ export interface ContractRepository {
   findLatestByProject(projectId: string): Promise<Contract | null>;
   save(contract: Contract): Promise<void>;
   awaitingPaymentPastDeadline(now: Date, limit: number): Promise<string[]>;
+  /** Contratos ativos cuja entrega em revisão passou do prazo (reconciliador). */
+  reviewsPastDeadline(now: Date, limit: number): Promise<string[]>;
+  /** Aprovados ainda sem repasse (nova tentativa periódica ou quando a conta fica pronta). */
+  approvedUnreleased(input: { freelancerId?: string; limit: number }): Promise<string[]>;
+  listForUser(userId: string, limit: number): Promise<Contract[]>;
+}
+
+export interface RatingRecord {
+  contractId: string;
+  freelancerId: string;
+  clientId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: Date;
+}
+
+export interface Ratings {
+  find(contractId: string): Promise<RatingRecord | null>;
+  /** false se o contrato já tinha avaliação. */
+  create(record: RatingRecord): Promise<boolean>;
+}
+
+/** Leitura e concessão de arquivos (módulo de arquivos). */
+export interface FileAccess {
+  usableBy(ownerId: string, fileIds: readonly string[], purpose: string): Promise<string[]>;
+  grant(fileIds: readonly string[], userId: string, reason: string): Promise<void>;
+  describe(
+    fileIds: readonly string[],
+  ): Promise<{ id: string; fileName: string; size: number; status: string }[]>;
 }
 
 export interface PaymentRepository {
@@ -137,6 +171,7 @@ export interface ProjectInfo {
 export interface ProjectGateway {
   find(projectId: string): Promise<ProjectInfo | null>;
   startWork(projectId: string): Promise<void>;
+  complete(projectId: string): Promise<void>;
 }
 
 export interface PeopleDirectory {
@@ -149,6 +184,8 @@ export interface ContractsDeps {
   ledger: Ledger;
   inbox: WebhookInbox;
   payoutAccounts: PayoutAccounts;
+  ratings: Ratings;
+  files: FileAccess;
   gateway: PaymentGateway;
   projects: ProjectGateway;
   people: PeopleDirectory;

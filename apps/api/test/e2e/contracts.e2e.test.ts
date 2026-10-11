@@ -211,7 +211,7 @@ describe('hiring with escrow payment', () => {
     // Reentrega do mesmo evento (o provedor faz isso) não gera efeito duplicado.
     expect((await webhook(event)).statusCode).toBe(200);
 
-    expect((await contractOf(client, projectId)).status).toBe('FUNDED');
+    expect((await contractOf(client, projectId)).status).toBe('ACTIVE');
     expect(await projectStatus(client, projectId)).toBe('IN_PROGRESS');
     const view = await adminContract(projectId);
     expect(view.escrowBalanceCents).toBe(300_000);

@@ -11,6 +11,8 @@ import { ID_GENERATOR } from '../../shared/infra/id/uuid-v7.generator.js';
 import { QueueName } from '../../shared/infra/queue/queue-names.js';
 import type { Clock } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
+import { FilesFacade } from '../files/application/use-cases.js';
+import { FilesModule, FilesWorkerModule } from '../files/files.module.js';
 import { ProjectsFacade } from '../projects/application/facade.js';
 import { ProjectsModule, ProjectsWorkerModule } from '../projects/projects.module.js';
 import { DISTRIBUTION_DEPS, type DistributionDeps } from './application/ports.js';
@@ -68,6 +70,7 @@ const sharedProviders = [
       MAILER,
       SETTINGS_READER,
       ProjectsFacade,
+      FilesFacade,
     ],
     useFactory: (
       env: Env,
@@ -78,12 +81,14 @@ const sharedProviders = [
       mailer: Mailer,
       settings: SettingsReader,
       projects: ProjectsFacade,
+      files: FilesFacade,
     ): DistributionDeps => ({
       rounds: new DrizzleRoundRepository(ctx, ids),
       queue: new DrizzleQueueRepository(ctx, ids),
       queries: new DrizzleDistributionQueries(ctx),
       projects,
       people: new DrizzleDistributionPeople(ctx),
+      files,
       settings,
       mailer,
       audit,
@@ -102,14 +107,18 @@ const sharedProviders = [
 
 /** Fila justa, rodadas, convites e propostas (docs/architecture.md §6). */
 @Module({
-  imports: [ProjectsModule],
+  imports: [ProjectsModule, FilesModule],
   controllers: [DistributionController, AdminDistributionController],
   providers: sharedProviders,
 })
 export class DistributionModule {}
 
 @Module({
-  imports: [ProjectsWorkerModule, BullModule.registerQueue({ name: QueueName.Distribution })],
+  imports: [
+    ProjectsWorkerModule,
+    FilesWorkerModule,
+    BullModule.registerQueue({ name: QueueName.Distribution }),
+  ],
   providers: [...sharedProviders, DistributionEventHandler, DistributionDeadlinesProcessor],
 })
 export class DistributionWorkerModule {}

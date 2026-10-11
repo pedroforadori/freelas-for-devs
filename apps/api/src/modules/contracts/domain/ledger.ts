@@ -10,7 +10,7 @@ export const LedgerAccount = {
 } as const;
 export type LedgerAccount = (typeof LedgerAccount)[keyof typeof LedgerAccount];
 
-export type JournalKind = 'FUNDING' | 'REFUND' | 'RELEASE';
+export type JournalKind = 'FUNDING' | 'REFUND' | 'RELEASE' | 'PAYOUT';
 
 export interface JournalLine {
   account: LedgerAccount;
@@ -90,4 +90,11 @@ export const releaseJournal = (
           },
         ]
       : []),
+  ]);
+
+/** Transferência ao freelancer concluída: o valor devido sai do saldo da plataforma. */
+export const payoutJournal = (input: Omit<Journal, 'lines' | 'kind'>, amountCents: number) =>
+  journal({ ...input, kind: 'PAYOUT' }, [
+    { account: LedgerAccount.FreelancerPayable, debitCents: amountCents, creditCents: 0 },
+    { account: LedgerAccount.GatewayClearing, debitCents: 0, creditCents: amountCents },
   ]);

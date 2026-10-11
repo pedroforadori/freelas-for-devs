@@ -12,12 +12,16 @@ import {
   CancelContractForProject,
   CreateContractForSelection,
   ExpireUnpaidContracts,
+  ProcessReviewDeadlines,
   ReconcilePendingPayments,
+  ReleasePayment,
+  RetryPendingReleases,
 } from '../application/use-cases.js';
 
 export const ContractsEventTypes = {
   ProposalSelected: 'distribution.ProposalSelected',
   ProjectCancelled: 'projects.ProjectCancelled',
+  ContractApproved: 'contracts.ContractApproved',
 } as const;
 
 /** Escolha da proposta → contrato; projeto cancelado → contrato encerrado (idempotentes). */
@@ -27,6 +31,7 @@ export class ContractsEventHandler implements DomainEventHandler {
   constructor(
     @Inject(CreateContractForSelection) private readonly create: CreateContractForSelection,
     @Inject(CancelContractForProject) private readonly cancel: CancelContractForProject,
+    @Inject(ReleasePayment) private readonly release: ReleasePayment,
   ) {}
 
   async handle(event: DomainEvent): Promise<void> {
@@ -42,13 +47,17 @@ export class ContractsEventHandler implements DomainEventHandler {
       });
     } else if (event.type === ContractsEventTypes.ProjectCancelled) {
       await this.cancel.execute(String(p.projectId));
+    } else if (event.type === ContractsEventTypes.ContractApproved) {
+      await this.release.execute(String(p.contractId));
     }
   }
 }
 
 const SCHEDULES = [
   { name: 'expire-unpaid-contracts', every: 60_000 },
+  { name: 'review-deadlines', every: 60_000 },
   { name: 'reconcile-payments', every: 5 * 60_000 },
+  { name: 'retry-releases', every: 15 * 60_000 },
 ] as const;
 
 /** Prazos de pagamento e reconciliação com o provedor (job schedulers do BullMQ). */
@@ -62,6 +71,8 @@ export class ContractsSchedulesProcessor
   constructor(
     @Inject(ExpireUnpaidContracts) private readonly expire: ExpireUnpaidContracts,
     @Inject(ReconcilePendingPayments) private readonly reconcile: ReconcilePendingPayments,
+    @Inject(ProcessReviewDeadlines) private readonly reviews: ProcessReviewDeadlines,
+    @Inject(RetryPendingReleases) private readonly releases: RetryPendingReleases,
     @InjectQueue(QueueName.Contracts) private readonly queue: Queue,
   ) {
     super();
@@ -83,6 +94,16 @@ export class ContractsSchedulesProcessor
       const expired = await this.expire.execute();
       if (expired > 0) this.logger.log({ expired }, 'Contratos expirados por falta de pagamento');
       return expired;
+    }
+    if (job.name === 'review-deadlines') {
+      const processed = await this.reviews.execute();
+      if (processed > 0) this.logger.log({ processed }, 'Revisões vencidas processadas');
+      return processed;
+    }
+    if (job.name === 'retry-releases') {
+      const released = await this.releases.execute();
+      if (released > 0) this.logger.log({ released }, 'Repasses pendentes liberados');
+      return released;
     }
     const result = await this.reconcile.execute();
     if (result.confirmed + result.closed > 0) this.logger.warn(result, 'Pagamentos reconciliados');

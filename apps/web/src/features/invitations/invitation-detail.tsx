@@ -13,6 +13,7 @@ import { Badge } from '@f4d/ui/components/badge';
 import { Button } from '@f4d/ui/components/button';
 import { Card } from '@f4d/ui/components/card';
 import { Field, fieldA11y, Input, Textarea } from '@f4d/ui/components/field';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { dateTime, formatPriceRange } from '@/features/projects/format';
@@ -107,7 +108,11 @@ function Respond({ invitation }: { invitation: Invitation }) {
     case 'HIRED':
       return (
         <Alert tone="success" title="Você foi contratado para este projeto">
-          Bom trabalho! As entregas acontecem pela área do contrato.
+          Bom trabalho! As entregas acontecem pela{' '}
+          <Link href="/contratos" className="underline">
+            área de contratos
+          </Link>
+          .
         </Alert>
       );
     case 'DECLINED':

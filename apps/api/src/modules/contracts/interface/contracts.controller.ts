@@ -5,6 +5,7 @@ import {
   type AdminContract,
   apiRoutes,
   type Contract as ContractDto,
+  type ContractSummary,
   type PayoutAccount,
 } from '@f4d/contracts';
 import type { FastifyRequest } from 'fastify';
@@ -26,8 +27,11 @@ import { CONTRACTS_DEPS, type ContractsDeps } from '../application/ports.js';
 import {
   HandlePaymentEvent,
   ManagePayoutAccount,
+  RateFreelancer,
   ReadContracts,
+  ReviewDelivery,
   StartCheckout,
+  SubmitDelivery,
 } from '../application/use-cases.js';
 import type { Contract } from '../domain/contract.js';
 
@@ -42,12 +46,16 @@ class ContractPresenter {
 
   async present(contract: Contract): Promise<ContractDto> {
     const s = contract.toSnapshot();
-    const [project, client, freelancer, inProgress] = await Promise.all([
+    const [project, client, freelancer, inProgress, rating, files] = await Promise.all([
       this.deps.projects.find(s.projectId),
       this.deps.people.find(s.clientId),
       this.deps.people.find(s.freelancerId),
       this.read.hasOpenCheckout(contract),
+      this.read.rating(s.id),
+      this.deps.files.describe(s.deliveries.flatMap((delivery) => delivery.attachmentIds)),
     ]);
+    const fileById = new Map(files.map((file) => [file.id, file]));
+    const current = contract.currentDelivery;
     return {
       id: s.id,
       status: s.status,
@@ -63,7 +71,57 @@ class ContractPresenter {
       paymentDeadlineAt: s.paymentDeadlineAt.toISOString(),
       fundedAt: s.fundedAt?.toISOString() ?? null,
       paymentInProgress: inProgress,
+      work: s.dueAt
+        ? {
+            stage: s.stage,
+            dueAt: s.dueAt.toISOString(),
+            reviewDeadlineAt:
+              current && !current.reviewedAt ? current.reviewDeadlineAt.toISOString() : null,
+            correctionsLeft: contract.correctionsLeft(),
+            deliveries: s.deliveries.map((delivery) => ({
+              number: delivery.number,
+              submittedAt: delivery.submittedAt.toISOString(),
+              message: delivery.message,
+              links: delivery.links,
+              attachments: delivery.attachmentIds.flatMap((id) => fileById.get(id) ?? []),
+              reviewDeadlineAt: delivery.reviewDeadlineAt.toISOString(),
+              reviewedAt: delivery.reviewedAt?.toISOString() ?? null,
+              outcome: delivery.outcome,
+              adjustments: delivery.adjustments,
+              correction: delivery.correction,
+            })),
+            approvedAt: s.approvedAt?.toISOString() ?? null,
+            approvedAutomatically: s.approvalKind === 'AUTO',
+            releasedAt: s.releasedAt?.toISOString() ?? null,
+            rating: rating
+              ? {
+                  rating: rating.rating,
+                  comment: rating.comment,
+                  createdAt: rating.createdAt.toISOString(),
+                }
+              : null,
+          }
+        : null,
       createdAt: s.createdAt.toISOString(),
+    };
+  }
+
+  async summary(contract: Contract, userId: string): Promise<ContractSummary> {
+    const s = contract.toSnapshot();
+    const role = s.clientId === userId ? 'CLIENT' : 'FREELANCER';
+    const counterpartId = role === 'CLIENT' ? s.freelancerId : s.clientId;
+    const [project, counterpart] = await Promise.all([
+      this.deps.projects.find(s.projectId),
+      this.deps.people.find(counterpartId),
+    ]);
+    return {
+      id: s.id,
+      status: s.status,
+      stage: s.stage,
+      project: { id: s.projectId, title: project?.title ?? '' },
+      counterpart: { userId: counterpartId, displayName: counterpart?.displayName ?? '' },
+      role,
+      updatedAt: s.updatedAt.toISOString(),
     };
   }
 }
@@ -77,8 +135,53 @@ export class ContractsController {
     private readonly read: ReadContracts,
     private readonly checkout: StartCheckout,
     private readonly payouts: ManagePayoutAccount,
+    private readonly deliveries: SubmitDelivery,
+    private readonly reviews: ReviewDelivery,
+    private readonly ratings: RateFreelancer,
   ) {
     this.presenter = new ContractPresenter(deps, read);
+  }
+
+  @ContractRoute(routes.listMyContracts)
+  async list(@CurrentPrincipal() principal: Principal): Promise<{ items: ContractSummary[] }> {
+    const contracts = await this.read.listForUser(principal.userId);
+    return {
+      items: await Promise.all(
+        contracts
+          .filter((contract) => contract.status !== 'EXPIRED' && contract.status !== 'CANCELLED')
+          .map((contract) => this.presenter.summary(contract, principal.userId)),
+      ),
+    };
+  }
+
+  @ContractRoute(routes.submitDelivery)
+  async deliver(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.submitDelivery>,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<ContractDto> {
+    return this.presenter.present(
+      await this.deliveries.execute(principal.userId, params.contractId, body),
+    );
+  }
+
+  @ContractRoute(routes.reviewDelivery)
+  async review(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.reviewDelivery>,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<ContractDto> {
+    return this.presenter.present(
+      await this.reviews.execute(principal.userId, params.contractId, body),
+    );
+  }
+
+  @ContractRoute(routes.rateFreelancer)
+  async rate(
+    @ValidRequest() { params, body }: ContractRequest<typeof routes.rateFreelancer>,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<ContractDto> {
+    return this.presenter.present(
+      await this.ratings.execute(principal.userId, params.contractId, body),
+    );
   }
 
   @ContractRoute(routes.getContract)

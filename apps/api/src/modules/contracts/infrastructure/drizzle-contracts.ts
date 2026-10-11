@@ -1,6 +1,8 @@
-import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
+  contractRatings,
   contracts,
+  deliveries,
   ledgerEntries,
   payments,
   payoutAccounts,
@@ -18,19 +20,21 @@ import type {
   ContractRepository,
   Ledger,
   LedgerEntryView,
+  RatingRecord,
+  Ratings,
   PaymentRepository,
   PayoutAccountRecord,
   PayoutAccounts,
   PeopleDirectory,
   WebhookInbox,
 } from '../application/ports.js';
-import { Contract } from '../domain/contract.js';
+import { Contract, type DeliveryRecord } from '../domain/contract.js';
 import type { Journal, LedgerAccount } from '../domain/ledger.js';
 import { Payment } from '../domain/payment.js';
 
 type ContractRow = typeof contracts.$inferSelect;
 
-const toContract = (row: ContractRow): Contract =>
+const toContract = (row: ContractRow, deliveryRows: DeliveryRecord[]): Contract =>
   Contract.rehydrate({
     id: row.id,
     projectId: row.projectId,
@@ -50,6 +54,15 @@ const toContract = (row: ContractRow): Contract =>
     paymentDeadlineAt: row.paymentDeadlineAt,
     fundedAt: row.fundedAt,
     closedAt: row.closedAt,
+    stage: row.stage,
+    dueAt: row.dueAt,
+    deliveryParams: row.deliveryParams,
+    correctionsUsed: row.correctionsUsed,
+    deliveries: deliveryRows,
+    approvedAt: row.approvedAt,
+    approvalKind: row.approvalKind,
+    releasedAt: row.releasedAt,
+    transferRef: row.transferRef,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     version: row.version,
@@ -61,9 +74,31 @@ export class DrizzleContractRepository implements ContractRepository {
     private readonly ids: IdGenerator,
   ) {}
 
+  private async hydrate(rows: ContractRow[]): Promise<Contract[]> {
+    if (rows.length === 0) return [];
+    const deliveryRows = await this.ctx.executor
+      .select()
+      .from(deliveries)
+      .where(
+        inArray(
+          deliveries.contractId,
+          rows.map((row) => row.id),
+        ),
+      )
+      .orderBy(asc(deliveries.submittedAt));
+    return rows.map((row) =>
+      toContract(
+        row,
+        deliveryRows
+          .filter((delivery) => delivery.contractId === row.id)
+          .map(({ contractId: _contract, ...delivery }) => delivery),
+      ),
+    );
+  }
+
   private async one(where: ReturnType<typeof eq>): Promise<Contract | null> {
-    const [row] = await this.ctx.executor.select().from(contracts).where(where).limit(1);
-    return row ? toContract(row) : null;
+    const rows = await this.ctx.executor.select().from(contracts).where(where).limit(1);
+    return (await this.hydrate(rows))[0] ?? null;
   }
 
   find(id: string) {
@@ -75,13 +110,54 @@ export class DrizzleContractRepository implements ContractRepository {
   }
 
   async findLatestByProject(projectId: string): Promise<Contract | null> {
-    const [row] = await this.ctx.executor
+    const rows = await this.ctx.executor
       .select()
       .from(contracts)
       .where(eq(contracts.projectId, projectId))
       .orderBy(desc(contracts.createdAt), desc(contracts.id))
       .limit(1);
-    return row ? toContract(row) : null;
+    return (await this.hydrate(rows))[0] ?? null;
+  }
+
+  async reviewsPastDeadline(now: Date, limit: number): Promise<string[]> {
+    const rows = await this.ctx.executor
+      .selectDistinct({ id: contracts.id })
+      .from(deliveries)
+      .innerJoin(contracts, eq(contracts.id, deliveries.contractId))
+      .where(
+        and(
+          eq(contracts.status, 'ACTIVE'),
+          isNull(deliveries.reviewedAt),
+          lte(deliveries.reviewDeadlineAt, now),
+        ),
+      )
+      .limit(limit);
+    return rows.map((row) => row.id);
+  }
+
+  async approvedUnreleased(input: { freelancerId?: string; limit: number }): Promise<string[]> {
+    const rows = await this.ctx.executor
+      .select({ id: contracts.id })
+      .from(contracts)
+      .where(
+        and(
+          eq(contracts.status, 'APPROVED'),
+          input.freelancerId ? eq(contracts.freelancerId, input.freelancerId) : undefined,
+        ),
+      )
+      .orderBy(asc(contracts.approvedAt))
+      .limit(input.limit);
+    return rows.map((row) => row.id);
+  }
+
+  async listForUser(userId: string, limit: number): Promise<Contract[]> {
+    const rows = await this.ctx.executor
+      .select()
+      .from(contracts)
+      .where(or(eq(contracts.clientId, userId), eq(contracts.freelancerId, userId)))
+      .orderBy(desc(contracts.updatedAt))
+      .limit(limit);
+    return this.hydrate(rows);
   }
 
   async awaitingPaymentPastDeadline(now: Date, limit: number): Promise<string[]> {
@@ -101,6 +177,14 @@ export class DrizzleContractRepository implements ContractRepository {
         status: s.status,
         fundedAt: s.fundedAt,
         closedAt: s.closedAt,
+        stage: s.stage,
+        dueAt: s.dueAt,
+        deliveryParams: s.deliveryParams,
+        correctionsUsed: s.correctionsUsed,
+        approvedAt: s.approvedAt,
+        approvalKind: s.approvalKind,
+        releasedAt: s.releasedAt,
+        transferRef: s.transferRef,
         updatedAt: s.updatedAt,
       };
       if (s.version === 0) {
@@ -129,6 +213,22 @@ export class DrizzleContractRepository implements ContractRepository {
           .where(and(eq(contracts.id, s.id), eq(contracts.version, s.version)))
           .returning({ id: contracts.id });
         if (updated.length === 0) throw new ConcurrencyError('Contract', s.id);
+      }
+      // Entregas: inserção ou atualização da revisão (chave: contrato + número + envio).
+      for (const delivery of s.deliveries) {
+        const values = {
+          reviewedAt: delivery.reviewedAt,
+          outcome: delivery.outcome,
+          adjustments: delivery.adjustments,
+          correction: delivery.correction,
+        };
+        await db
+          .insert(deliveries)
+          .values({ ...delivery, contractId: s.id })
+          .onConflictDoUpdate({
+            target: [deliveries.contractId, deliveries.number, deliveries.submittedAt],
+            set: values,
+          });
       }
       await appendToOutbox(db, assignEventIds(contract.pullEvents(), this.ids));
       contract.markPersisted();
@@ -302,5 +402,27 @@ export class DrizzleContractPeople implements PeopleDirectory {
       .where(eq(users.id, userId))
       .limit(1);
     return row ?? null;
+  }
+}
+
+export class DrizzleRatings implements Ratings {
+  constructor(private readonly ctx: DatabaseContext) {}
+
+  async find(contractId: string): Promise<RatingRecord | null> {
+    const [row] = await this.ctx.executor
+      .select()
+      .from(contractRatings)
+      .where(eq(contractRatings.contractId, contractId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async create(record: RatingRecord): Promise<boolean> {
+    const inserted = await this.ctx.executor
+      .insert(contractRatings)
+      .values(record)
+      .onConflictDoNothing()
+      .returning({ contractId: contractRatings.contractId });
+    return inserted.length > 0;
   }
 }

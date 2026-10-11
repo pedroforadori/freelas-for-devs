@@ -4,14 +4,26 @@ import { HOUR_MS } from '../../../shared/kernel/clock.js';
 import { computeAmounts } from '../domain/commission.js';
 import { Contract } from '../domain/contract.js';
 import { ContractNotFoundError, PaymentWindowClosedError } from '../domain/errors.js';
-import { fundingJournal, LedgerAccount, refundJournal } from '../domain/ledger.js';
+import { DeliveryRuleError } from '../domain/contract.js';
+import {
+  fundingJournal,
+  LedgerAccount,
+  payoutJournal,
+  refundJournal,
+  releaseJournal,
+} from '../domain/ledger.js';
 import { Payment } from '../domain/payment.js';
 import {
+  approvedEmail,
+  deliveryReviewedEmail,
+  deliverySubmittedEmail,
   lateRefundEmail,
+  releasedEmail,
   paymentConfirmedClientEmail,
   paymentExpiredClientEmail,
   workStartsFreelancerEmail,
 } from './emails.js';
+import type { DeliveryInput, DeliveryReview, RatingInputValue } from './types.js';
 import type { ContractsDeps, GatewayEvent } from './ports.js';
 
 /** Checkouts do Stripe vivem no máximo 24 h; mínimo de 30 min. */
@@ -37,6 +49,10 @@ abstract class ContractsUseCase {
 
   protected projectUrl(projectId: string): string {
     return `${this.deps.webAppUrl}/projetos/${projectId}`;
+  }
+
+  protected contractUrl(contractId: string): string {
+    return `${this.deps.webAppUrl}/contratos/${contractId}`;
   }
 }
 
@@ -160,7 +176,14 @@ export class ConfirmPayment extends ContractsUseCase {
       const accepted =
         contract.status === 'AWAITING_PAYMENT' && amountCents === contract.amounts.clientTotalCents;
       if (accepted) {
-        contract.fund(now);
+        contract.fund(
+          {
+            reviewDays: await this.deps.settings.get('delivery.reviewDays'),
+            autoApproveDays: await this.deps.settings.get('delivery.autoApproveDays'),
+            maxCorrections: await this.deps.settings.get('delivery.finalCorrectionsMax'),
+          },
+          now,
+        );
         await contracts.save(contract);
         await this.deps.projects.startWork(contract.projectId);
       } else {
@@ -209,6 +232,7 @@ export class HandlePaymentEvent extends ContractsUseCase {
   constructor(
     deps: ContractsDeps,
     private readonly confirm: ConfirmPayment,
+    private readonly release?: ReleasePayment,
   ) {
     super(deps);
   }
@@ -254,6 +278,14 @@ export class HandlePaymentEvent extends ContractsUseCase {
             },
             clock.now(),
           );
+          // Conta ficou pronta: repasses que esperavam por ela saem agora.
+          if (event.payoutsEnabled && this.release) {
+            const pending = await this.deps.contracts.approvedUnreleased({
+              freelancerId: account.userId,
+              limit: 20,
+            });
+            for (const contractId of pending) await this.release.execute(contractId);
+          }
         }
         break;
       }
@@ -428,8 +460,260 @@ export class ReadContracts extends ContractsUseCase {
     return { contract, payments, ledger, escrowBalanceCents: escrow };
   }
 
+  listForUser(userId: string): Promise<Contract[]> {
+    return this.deps.contracts.listForUser(userId, 50);
+  }
+
+  rating(contractId: string) {
+    return this.deps.ratings.find(contractId);
+  }
+
   async hasOpenCheckout(contract: Contract): Promise<boolean> {
     const now = this.deps.clock.now();
     return (await this.deps.payments.listByContract(contract.id)).some((p) => p.isReusable(now));
+  }
+}
+
+const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(date);
+
+const brl = (cents: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+
+/** Freelancer entrega a etapa atual; arquivos passam a ser legíveis pelo cliente. */
+export class SubmitDelivery extends ContractsUseCase {
+  async execute(freelancerId: string, contractId: string, input: DeliveryInput): Promise<Contract> {
+    const contract = await this.deps.uow.run(async () => {
+      const loaded = await this.participantContract(freelancerId, contractId);
+      const attachments = [...new Set(input.attachmentIds)];
+      const usable = await this.deps.files.usableBy(freelancerId, attachments, 'DELIVERY_FILE');
+      if (usable.length !== attachments.length)
+        throw new DeliveryRuleError(
+          'Um ou mais arquivos não existem, não são seus ou foram recusados.',
+        );
+      loaded.deliver(freelancerId, { ...input, attachmentIds: attachments }, this.deps.clock.now());
+      await this.deps.contracts.save(loaded);
+      await this.deps.files.grant(attachments, loaded.clientId, 'contract-delivery');
+      return loaded;
+    });
+    const delivery = contract.currentDelivery!;
+    const title = (await this.deps.projects.find(contract.projectId))?.title ?? 'Projeto';
+    await this.mail(contract.clientId, (to, name) =>
+      deliverySubmittedEmail(
+        to,
+        name,
+        title,
+        delivery.number,
+        formatDate(delivery.reviewDeadlineAt),
+        this.contractUrl(contract.id),
+      ),
+    );
+    return contract;
+  }
+}
+
+/** Revisão do cliente: aprovar (conclui o projeto), lista de ajustes ou correção pontual. */
+export class ReviewDelivery extends ContractsUseCase {
+  async execute(clientId: string, contractId: string, review: DeliveryReview): Promise<Contract> {
+    const contract = await this.deps.uow.run(async () => {
+      const loaded = await this.participantContract(clientId, contractId);
+      const now = this.deps.clock.now();
+      if (review.decision === 'APPROVE') {
+        loaded.approve('CLIENT', clientId, now);
+        await this.deps.contracts.save(loaded);
+        await this.deps.projects.complete(loaded.projectId);
+      } else if (review.decision === 'ADJUSTMENTS') {
+        const items = review.items.map((text) => ({ id: this.deps.ids.next(), text }));
+        loaded.requestAdjustments(clientId, items, now);
+        await this.deps.contracts.save(loaded);
+      } else {
+        loaded.requestCorrection(clientId, review.adjustmentIds, review.note ?? null, now);
+        await this.deps.contracts.save(loaded);
+      }
+      return loaded;
+    });
+    await this.notifyFreelancer(contract, review.decision);
+    return contract;
+  }
+
+  private async notifyFreelancer(contract: Contract, decision: DeliveryReview['decision']) {
+    const title = (await this.deps.projects.find(contract.projectId))?.title ?? 'Projeto';
+    if (decision === 'APPROVE') {
+      const account = await this.deps.payoutAccounts.find(contract.freelancerId);
+      const needsAccount = !account?.payoutsEnabled;
+      await this.mail(contract.freelancerId, (to, name) =>
+        approvedEmail(
+          to,
+          name,
+          title,
+          false,
+          needsAccount,
+          needsAccount
+            ? `${this.deps.webAppUrl}/conta/recebimentos`
+            : this.contractUrl(contract.id),
+        ),
+      );
+      return;
+    }
+    await this.mail(contract.freelancerId, (to, name) =>
+      deliveryReviewedEmail(
+        to,
+        name,
+        title,
+        decision === 'ADJUSTMENTS' ? 'ADJUSTMENTS' : 'CORRECTION',
+        this.contractUrl(contract.id),
+      ),
+    );
+  }
+}
+
+/** Reconciliador (a cada minuto): revisões vencidas avançam; a final é aprovada automaticamente. */
+export class ProcessReviewDeadlines extends ContractsUseCase {
+  async execute(batch = 50): Promise<number> {
+    const ids = await this.deps.contracts.reviewsPastDeadline(this.deps.clock.now(), batch);
+    let processed = 0;
+    for (const contractId of ids) {
+      const outcome = await this.deps.uow.run(async () => {
+        const contract = await this.deps.contracts.find(contractId);
+        const result = contract?.reviewTimeout(this.deps.clock.now()) ?? null;
+        if (!contract || !result) return null;
+        await this.deps.contracts.save(contract);
+        if (result === 'AUTO_APPROVED') await this.deps.projects.complete(contract.projectId);
+        return { contract, result };
+      });
+      if (!outcome) continue;
+      processed += 1;
+      const { contract, result } = outcome;
+      const title = (await this.deps.projects.find(contract.projectId))?.title ?? 'Projeto';
+      if (result === 'AUTO_APPROVED') {
+        const account = await this.deps.payoutAccounts.find(contract.freelancerId);
+        await this.mail(contract.freelancerId, (to, name) =>
+          approvedEmail(
+            to,
+            name,
+            title,
+            true,
+            !account?.payoutsEnabled,
+            this.contractUrl(contract.id),
+          ),
+        );
+      } else {
+        await this.mail(contract.freelancerId, (to, name) =>
+          deliveryReviewedEmail(to, name, title, 'TIMEOUT', this.contractUrl(contract.id)),
+        );
+      }
+    }
+    return processed;
+  }
+}
+
+export type ReleaseOutcome = 'RELEASED' | 'WAITING_ACCOUNT' | 'SKIPPED';
+
+/**
+ * Liberação (ContractApproved, nova tentativa periódica ou conta pronta): repassa o líquido ao
+ * freelancer e lança RELEASE + PAYOUT no razão — tudo na mesma transação; a chamada ao provedor é
+ * idempotente pela chave, então uma falha só adia o repasse.
+ */
+export class ReleasePayment extends ContractsUseCase {
+  async execute(contractId: string): Promise<ReleaseOutcome> {
+    const outcome = await this.deps.uow.run(async (): Promise<ReleaseOutcome> => {
+      const contract = await this.deps.contracts.find(contractId);
+      if (contract?.status !== 'APPROVED') return 'SKIPPED';
+      let account = await this.deps.payoutAccounts.find(contract.freelancerId);
+      if (!account) return 'WAITING_ACCOUNT';
+      if (!account.payoutsEnabled) {
+        // O aviso do provedor (account.updated) pode ter se perdido: confere direto nele.
+        const fresh = await this.deps.gateway.retrieveAccount(account.providerAccountId);
+        if (!fresh.payoutsEnabled) return 'WAITING_ACCOUNT';
+        account = { ...account, ...fresh };
+        await this.deps.payoutAccounts.save(account, this.deps.clock.now());
+      }
+
+      const { freelancerNetCents, platformFeeCents } = contract.amounts;
+      const transferRef = await this.deps.gateway.createTransfer(
+        {
+          amountCents: freelancerNetCents,
+          destinationAccountId: account.providerAccountId,
+          contractId: contract.id,
+        },
+        `transfer:${contract.id}`,
+      );
+      const now = this.deps.clock.now();
+      const base = { contractId: contract.id, reference: transferRef, createdAt: now };
+      await this.deps.ledger.append(
+        releaseJournal(
+          { ...base, id: this.deps.ids.next() },
+          { freelancerNetCents, platformFeeCents },
+        ),
+      );
+      await this.deps.ledger.append(
+        payoutJournal({ ...base, id: this.deps.ids.next() }, freelancerNetCents),
+      );
+      contract.release(transferRef, now);
+      await this.deps.contracts.save(contract);
+      return 'RELEASED';
+    });
+    if (outcome === 'RELEASED') {
+      const contract = (await this.deps.contracts.find(contractId))!;
+      const title = (await this.deps.projects.find(contract.projectId))?.title ?? 'Projeto';
+      await this.mail(contract.freelancerId, (to, name) =>
+        releasedEmail(
+          to,
+          name,
+          title,
+          brl(contract.amounts.freelancerNetCents),
+          this.contractUrl(contractId),
+        ),
+      );
+    }
+    return outcome;
+  }
+}
+
+/** Nova tentativa periódica dos repasses pendentes (conta pronta, saldo disponível, provedor fora). */
+export class RetryPendingReleases extends ContractsUseCase {
+  constructor(
+    deps: ContractsDeps,
+    private readonly release: ReleasePayment,
+  ) {
+    super(deps);
+  }
+
+  async execute(): Promise<number> {
+    let released = 0;
+    for (const contractId of await this.deps.contracts.approvedUnreleased({ limit: 50 })) {
+      try {
+        if ((await this.release.execute(contractId)) === 'RELEASED') released += 1;
+      } catch {
+        // Fica para a próxima rodada (ex.: saldo ainda não disponível no provedor).
+      }
+    }
+    return released;
+  }
+}
+
+/** Avaliação do cliente depois da aprovação (uma por contrato); base da reputação (F9). */
+export class RateFreelancer extends ContractsUseCase {
+  async execute(clientId: string, contractId: string, input: RatingInputValue): Promise<Contract> {
+    const contract = await this.participantContract(clientId, contractId);
+    if (contract.clientId !== clientId) throw new ContractNotFoundError();
+    if (contract.status !== 'APPROVED' && contract.status !== 'RELEASED')
+      throw new DeliveryRuleError(
+        'A avaliação fica disponível depois da aprovação da entrega final.',
+      );
+    const created = await this.deps.ratings.create({
+      contractId,
+      freelancerId: contract.freelancerId,
+      clientId,
+      rating: input.rating,
+      comment: input.comment?.trim() || null,
+      createdAt: this.deps.clock.now(),
+    });
+    if (!created) throw new DeliveryRuleError('Este contrato já foi avaliado.');
+    return contract;
   }
 }

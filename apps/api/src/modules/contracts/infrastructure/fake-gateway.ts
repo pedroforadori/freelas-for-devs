@@ -97,6 +97,14 @@ export class FakePaymentGateway implements PaymentGateway {
     return Promise.resolve(urls.returnUrl);
   }
 
+  readonly transfers: { amountCents: number; destinationAccountId: string; contractId: string }[] =
+    [];
+
+  createTransfer(input: { amountCents: number; destinationAccountId: string; contractId: string }) {
+    if (!this.transfers.some((t) => t.contractId === input.contractId)) this.transfers.push(input);
+    return Promise.resolve(`fake_tr_${input.contractId}`);
+  }
+
   /** No simulador, o cadastro de recebimento fica pronto assim que é criado. */
   retrieveAccount(): Promise<{ detailsSubmitted: boolean; payoutsEnabled: boolean }> {
     return Promise.resolve({ detailsSubmitted: true, payoutsEnabled: true });

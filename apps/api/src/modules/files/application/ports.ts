@@ -45,8 +45,15 @@ export interface FileScanScheduler {
   schedule(fileId: string): Promise<void>;
 }
 
+/** Leitura concedida a outras pessoas (ex.: cliente lê os arquivos da entrega). */
+export interface FileGrants {
+  has(fileId: string, userId: string): Promise<boolean>;
+  grant(fileIds: readonly string[], userId: string, reason: string): Promise<void>;
+}
+
 export interface FilesDeps {
   files: FileRepository;
+  grants: FileGrants;
   storage: ObjectStorage;
   scanner: MalwareScanner;
   scheduler: FileScanScheduler;

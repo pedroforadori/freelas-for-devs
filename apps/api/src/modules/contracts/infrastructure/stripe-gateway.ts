@@ -182,6 +182,27 @@ export class StripePaymentGateway implements PaymentGateway {
     return link.url;
   }
 
+  /**
+   * Repasse ao freelancer a partir do saldo da plataforma (separate charges and transfers). Falha
+   * se o saldo ainda não estiver disponível; o job repete até conseguir.
+   */
+  async createTransfer(
+    input: { amountCents: number; destinationAccountId: string; contractId: string },
+    idempotencyKey: string,
+  ): Promise<string> {
+    const transfer = await this.stripe.transfers.create(
+      {
+        amount: input.amountCents,
+        currency: 'brl',
+        destination: input.destinationAccountId,
+        transfer_group: `contract_${input.contractId}`,
+        metadata: { contractId: input.contractId },
+      },
+      { idempotencyKey },
+    );
+    return transfer.id;
+  }
+
   async retrieveAccount(accountId: string) {
     const account = await this.stripe.accounts.retrieve(accountId);
     return {

@@ -85,6 +85,13 @@
       "when": 1791635785487,
       "tag": "0011_contracts_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791720712960,
+      "tag": "0012_deliveries",
+      "breakpoints": true
     }
   ]
 }

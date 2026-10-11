@@ -1,4 +1,13 @@
-import { bigint, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { users } from './identity.js';
 
 export const files = pgTable(
@@ -8,7 +17,7 @@ export const files = pgTable(
     ownerId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    purpose: text().$type<'PORTFOLIO_IMAGE' | 'PROJECT_ATTACHMENT'>().notNull(),
+    purpose: text().$type<'PORTFOLIO_IMAGE' | 'PROJECT_ATTACHMENT' | 'DELIVERY_FILE'>().notNull(),
     /** Nome saneado, só para exibição/download; a chave no storage é gerada pelo servidor. */
     fileName: text().notNull(),
     contentType: text().notNull(),
@@ -24,4 +33,23 @@ export const files = pgTable(
     // Limpeza de uploads abandonados (job periódico).
     index('files_status_idx').on(table.status, table.createdAt),
   ],
+);
+
+/**
+ * Acesso de leitura concedido a outra pessoa (ex.: anexos do projeto para o freelancer convidado,
+ * arquivos da entrega para o cliente). Sem concessão, só o dono e o Admin leem o arquivo.
+ */
+export const fileAccessGrants = pgTable(
+  'file_access_grants',
+  {
+    fileId: uuid()
+      .notNull()
+      .references(() => files.id, { onDelete: 'cascade' }),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: text().notNull(),
+    grantedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.fileId, table.userId] })],
 );

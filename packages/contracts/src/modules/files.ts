@@ -5,6 +5,7 @@ import { defineRoute } from '../http/route.js';
 export const FilePurpose = {
   PortfolioImage: 'PORTFOLIO_IMAGE',
   ProjectAttachment: 'PROJECT_ATTACHMENT',
+  DeliveryFile: 'DELIVERY_FILE',
 } as const;
 export type FilePurpose = (typeof FilePurpose)[keyof typeof FilePurpose];
 export const filePurposeSchema = z.enum(
@@ -27,6 +28,11 @@ export const FILE_RULES: Readonly<
   PROJECT_ATTACHMENT: {
     contentTypes: ['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'application/zip'],
     maxBytes: 20 * MB,
+  },
+  /** Arquivos das entregas (código-fonte em ZIP, documentos, prints). */
+  DELIVERY_FILE: {
+    contentTypes: ['image/png', 'image/jpeg', 'image/webp', 'application/pdf', 'application/zip'],
+    maxBytes: 50 * MB,
   },
 };
 

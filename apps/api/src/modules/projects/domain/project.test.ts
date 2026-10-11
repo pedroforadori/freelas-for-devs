@@ -245,6 +245,8 @@ describe('Project', () => {
         '  HIRING --> IN_PROGRESS: startWork',
         '  HIRING --> DISTRIBUTING: revertHiring',
         '  HIRING --> CANCELLED: cancel',
+        '  IN_PROGRESS --> COMPLETED: complete',
+        '  COMPLETED --> [*]',
         '  REJECTED --> [*]',
         '  CANCELLED --> [*]',
       ].join('\n'),

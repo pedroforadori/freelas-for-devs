@@ -5,7 +5,9 @@ import { ProjectEvents } from '../../projects/domain/project.js';
 import type {
   CancelContractForProject,
   CreateContractForSelection,
+  ReleasePayment,
 } from '../application/use-cases.js';
+import { ContractEvents } from '../domain/contract.js';
 import { ContractsEventHandler, ContractsEventTypes } from './contracts.worker.js';
 
 const event = (type: string, payload: Record<string, unknown>): DomainEvent => ({
@@ -22,6 +24,7 @@ describe('ContractsEventHandler', () => {
     expect(ContractsEventTypes).toEqual({
       ProposalSelected: RoundEvents.ProposalSelected,
       ProjectCancelled: ProjectEvents.Cancelled,
+      ContractApproved: ContractEvents.Approved,
     });
   });
 
@@ -31,6 +34,7 @@ describe('ContractsEventHandler', () => {
     const handler = new ContractsEventHandler(
       create as unknown as CreateContractForSelection,
       cancel as unknown as CancelContractForProject,
+      { execute: vi.fn() } as unknown as ReleasePayment,
     );
     await handler.handle(
       event(RoundEvents.ProposalSelected, {

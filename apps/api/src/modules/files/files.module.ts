@@ -19,11 +19,15 @@ import {
 import {
   CompleteUpload,
   CreateUpload,
+  FilesFacade,
   ReadFile,
   ScanUploadedFile,
 } from './application/use-cases.js';
 import { ClamAvScanner, DisabledMalwareScanner } from './infrastructure/clamav-scanner.js';
-import { DrizzleFileRepository } from './infrastructure/drizzle-file.repository.js';
+import {
+  DrizzleFileGrants,
+  DrizzleFileRepository,
+} from './infrastructure/drizzle-file.repository.js';
 import { S3ObjectStorage } from './infrastructure/s3-object-storage.js';
 import { FilesController, FileScanProcessor } from './interface/files.controller.js';
 
@@ -74,6 +78,7 @@ const sharedProviders = [
       queue: Queue<{ fileId: string }>,
     ): FilesDeps => ({
       files: new DrizzleFileRepository(ctx, ids),
+      grants: new DrizzleFileGrants(ctx),
       storage,
       scanner,
       scheduler: {
@@ -96,7 +101,7 @@ const sharedProviders = [
       ids,
     }),
   },
-  ...[CreateUpload, CompleteUpload, ReadFile, ScanUploadedFile].map((UseCase) => ({
+  ...[CreateUpload, CompleteUpload, ReadFile, ScanUploadedFile, FilesFacade].map((UseCase) => ({
     provide: UseCase,
     inject: [FILES_DEPS],
     useFactory: (deps: FilesDeps) => new UseCase(deps),
@@ -107,11 +112,13 @@ const sharedProviders = [
   imports: [BullModule.registerQueue({ name: QueueName.Files })],
   controllers: [FilesController],
   providers: sharedProviders,
+  exports: [FilesFacade],
 })
 export class FilesModule {}
 
 @Module({
   imports: [BullModule.registerQueue({ name: QueueName.Files })],
   providers: [...sharedProviders, FileScanProcessor],
+  exports: [FilesFacade],
 })
 export class FilesWorkerModule {}

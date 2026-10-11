@@ -45,6 +45,11 @@ abstract class DistributionUseCase {
           entry.invited(now);
           await queue.save(entry);
         }
+        // Convidados leem os anexos do projeto para montar a proposta.
+        const project = await this.deps.projects.find(round.projectId);
+        for (const freelancerId of project?.attachmentIds.length ? freelancerIds : []) {
+          await this.deps.files.grant(project!.attachmentIds, freelancerId, 'project-invitation');
+        }
         notices.push({
           kind: 'invited',
           projectId: round.projectId,

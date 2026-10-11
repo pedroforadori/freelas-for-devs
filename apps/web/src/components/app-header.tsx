@@ -14,6 +14,11 @@ export function AppHeader() {
     { href: '/painel', label: 'Painel', show: true },
     { href: '/projetos', label: 'Projetos', show: hasRole(me, 'CLIENT') },
     { href: '/convites', label: 'Convites', show: hasRole(me, 'FREELANCER') },
+    {
+      href: '/contratos',
+      label: 'Contratos',
+      show: hasRole(me, 'FREELANCER') || hasRole(me, 'CLIENT'),
+    },
     { href: '/perfil', label: 'Perfil', show: hasRole(me, 'FREELANCER') || hasRole(me, 'CLIENT') },
     { href: '/admin/projetos', label: 'Admin', show: hasRole(me, 'ADMIN') },
     { href: '/conta/recebimentos', label: 'Recebimentos', show: hasRole(me, 'FREELANCER') },

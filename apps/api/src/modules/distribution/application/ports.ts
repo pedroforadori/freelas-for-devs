@@ -100,6 +100,12 @@ export interface ProjectForDistribution {
   description: string;
   status: ProjectStatus;
   scope: Scope | null;
+  attachmentIds: string[];
+}
+
+/** Concede leitura de arquivos (módulo de arquivos). */
+export interface FileAccess {
+  grant(fileIds: readonly string[], userId: string, reason: string): Promise<void>;
 }
 
 /** Porta para o módulo de projetos (implementada sobre a fachada pública dele). */
@@ -121,6 +127,7 @@ export interface DistributionDeps {
   queries: DistributionQueries;
   projects: ProjectGateway;
   people: PeopleDirectory;
+  files: FileAccess;
   settings: SettingsReader;
   mailer: Mailer;
   audit: AuditLogger;

@@ -11,6 +11,8 @@ import { ID_GENERATOR } from '../../shared/infra/id/uuid-v7.generator.js';
 import { QueueName } from '../../shared/infra/queue/queue-names.js';
 import type { Clock } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
+import { FilesFacade } from '../files/application/use-cases.js';
+import { FilesModule, FilesWorkerModule } from '../files/files.module.js';
 import { ProjectsFacade } from '../projects/application/facade.js';
 import { ProjectsModule, ProjectsWorkerModule } from '../projects/projects.module.js';
 import { CONTRACTS_DEPS, type ContractsDeps, type PaymentGateway } from './application/ports.js';
@@ -21,9 +23,15 @@ import {
   ExpireUnpaidContracts,
   HandlePaymentEvent,
   ManagePayoutAccount,
+  ProcessReviewDeadlines,
+  RateFreelancer,
   ReadContracts,
   ReconcilePendingPayments,
+  ReleasePayment,
+  RetryPendingReleases,
+  ReviewDelivery,
   StartCheckout,
+  SubmitDelivery,
 } from './application/use-cases.js';
 import {
   DrizzleContractPeople,
@@ -31,6 +39,7 @@ import {
   DrizzleLedger,
   DrizzlePaymentRepository,
   DrizzlePayoutAccounts,
+  DrizzleRatings,
   DrizzleWebhookInbox,
 } from './infrastructure/drizzle-contracts.js';
 import { FakePaymentGateway } from './infrastructure/fake-gateway.js';
@@ -66,6 +75,11 @@ const SIMPLE_USE_CASES = [
   CancelContractForProject,
   ManagePayoutAccount,
   ReadContracts,
+  SubmitDelivery,
+  ReviewDelivery,
+  ProcessReviewDeadlines,
+  ReleasePayment,
+  RateFreelancer,
 ] as const;
 
 const sharedProviders = [
@@ -82,6 +96,7 @@ const sharedProviders = [
       SETTINGS_READER,
       PAYMENT_GATEWAY,
       ProjectsFacade,
+      FilesFacade,
     ],
     useFactory: (
       env: Env,
@@ -93,16 +108,20 @@ const sharedProviders = [
       settings: SettingsReader,
       gateway: PaymentGateway,
       projects: ProjectsFacade,
+      files: FilesFacade,
     ): ContractsDeps => ({
       contracts: new DrizzleContractRepository(ctx, ids),
       payments: new DrizzlePaymentRepository(ctx),
       ledger: new DrizzleLedger(ctx, ids),
       inbox: new DrizzleWebhookInbox(ctx),
       payoutAccounts: new DrizzlePayoutAccounts(ctx),
+      ratings: new DrizzleRatings(ctx),
+      files,
       gateway,
       projects: {
         find: (projectId) => projects.find(projectId),
         startWork: (projectId) => projects.startWork(projectId),
+        complete: (projectId) => projects.complete(projectId),
       },
       people: new DrizzleContractPeople(ctx),
       settings,
@@ -119,16 +138,29 @@ const sharedProviders = [
     inject: [CONTRACTS_DEPS],
     useFactory: (deps: ContractsDeps) => new UseCase(deps),
   })),
-  ...[HandlePaymentEvent, ReconcilePendingPayments].map((UseCase) => ({
-    provide: UseCase,
+  {
+    provide: ReconcilePendingPayments,
     inject: [CONTRACTS_DEPS, ConfirmPayment],
-    useFactory: (deps: ContractsDeps, confirm: ConfirmPayment) => new UseCase(deps, confirm),
-  })),
+    useFactory: (deps: ContractsDeps, confirm: ConfirmPayment) =>
+      new ReconcilePendingPayments(deps, confirm),
+  },
+  {
+    provide: HandlePaymentEvent,
+    inject: [CONTRACTS_DEPS, ConfirmPayment, ReleasePayment],
+    useFactory: (deps: ContractsDeps, confirm: ConfirmPayment, release: ReleasePayment) =>
+      new HandlePaymentEvent(deps, confirm, release),
+  },
+  {
+    provide: RetryPendingReleases,
+    inject: [CONTRACTS_DEPS, ReleasePayment],
+    useFactory: (deps: ContractsDeps, release: ReleasePayment) =>
+      new RetryPendingReleases(deps, release),
+  },
 ];
 
 /** Contratos, pagamentos em custódia, razão contábil e contas de recebimento (F6). */
 @Module({
-  imports: [ProjectsModule],
+  imports: [ProjectsModule, FilesModule],
   controllers: [
     ContractsController,
     PaymentWebhookController,
@@ -140,7 +172,11 @@ const sharedProviders = [
 export class ContractsModule {}
 
 @Module({
-  imports: [ProjectsWorkerModule, BullModule.registerQueue({ name: QueueName.Contracts })],
+  imports: [
+    ProjectsWorkerModule,
+    FilesWorkerModule,
+    BullModule.registerQueue({ name: QueueName.Contracts }),
+  ],
   providers: [...sharedProviders, ContractsEventHandler, ContractsSchedulesProcessor],
 })
 export class ContractsWorkerModule {}

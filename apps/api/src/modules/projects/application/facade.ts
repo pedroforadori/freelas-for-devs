@@ -12,6 +12,7 @@ export interface ProjectForDistribution {
   status: ProjectStatus;
   /** Escopo aprovado (nulo antes da aprovação). */
   scope: Scope | null;
+  attachmentIds: string[];
 }
 
 /**
@@ -33,6 +34,7 @@ export class ProjectsFacade {
       description: s.description,
       status: s.status,
       scope: s.scopeApprovedAt ? s.scope : null,
+      attachmentIds: s.attachmentIds,
     };
   }
 
@@ -54,6 +56,10 @@ export class ProjectsFacade {
 
   revertHiring(projectId: string): Promise<void> {
     return this.change(projectId, (project, now) => project.revertHiring(now));
+  }
+
+  complete(projectId: string): Promise<void> {
+    return this.change(projectId, (project, now) => project.complete(now));
   }
 
   private change(projectId: string, apply: (project: Project, now: Date) => void): Promise<void> {

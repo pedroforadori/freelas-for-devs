@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { files } from '../../../db/schema/files.js';
+import { fileAccessGrants, files } from '../../../db/schema/files.js';
 import type { DatabaseContext } from '../../../shared/infra/database/database-context.js';
 import {
   appendToOutbox,
@@ -7,7 +7,7 @@ import {
 } from '../../../shared/infra/outbox/drizzle-outbox.store.js';
 import { ConcurrencyError } from '../../../shared/kernel/domain-error.js';
 import type { IdGenerator } from '../../../shared/kernel/domain-event.js';
-import type { FileRepository } from '../application/ports.js';
+import type { FileGrants, FileRepository } from '../application/ports.js';
 import { StoredFile } from '../domain/stored-file.js';
 
 export class DrizzleFileRepository implements FileRepository {
@@ -43,5 +43,26 @@ export class DrizzleFileRepository implements FileRepository {
       await appendToOutbox(db, assignEventIds(file.pullEvents(), this.ids));
       file.markPersisted();
     });
+  }
+}
+
+export class DrizzleFileGrants implements FileGrants {
+  constructor(private readonly ctx: DatabaseContext) {}
+
+  async has(fileId: string, userId: string): Promise<boolean> {
+    const [row] = await this.ctx.executor
+      .select({ fileId: fileAccessGrants.fileId })
+      .from(fileAccessGrants)
+      .where(and(eq(fileAccessGrants.fileId, fileId), eq(fileAccessGrants.userId, userId)))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async grant(fileIds: readonly string[], userId: string, reason: string): Promise<void> {
+    if (fileIds.length === 0) return;
+    await this.ctx.executor
+      .insert(fileAccessGrants)
+      .values([...new Set(fileIds)].map((fileId) => ({ fileId, userId, reason })))
+      .onConflictDoNothing();
   }
 }
