@@ -10,3 +10,4 @@ export * from './settings.js';
 export * from './distribution.js';
 export * from './contracts.js';
 export * from './messaging.js';
+export * from './reputation.js';

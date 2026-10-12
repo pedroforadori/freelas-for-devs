@@ -4,6 +4,7 @@ import { ProfileEvents } from '../../profiles/domain/freelancer-profile.js';
 import { ContractEvents } from '../../contracts/domain/contract.js';
 import { UserEvents } from '../../identity/domain/user.js';
 import { ProjectEvents } from '../../projects/domain/project.js';
+import { ReputationEvents } from '../../reputation/domain/events.js';
 import type {
   CancelProjectRound,
   FinalizeHiring,
@@ -11,6 +12,7 @@ import type {
   PenalizeAbandonment,
   RemoveSuspendedFreelancer,
   RevertSelection,
+  UpdateQueueScore,
   SyncQueueEntry,
 } from '../application/use-cases.js';
 import { DistributionEventHandler, DistributionEventTypes } from './distribution.worker.js';
@@ -35,6 +37,7 @@ describe('DistributionEventHandler', () => {
       ContractExpired: ContractEvents.Expired,
       UserSuspended: UserEvents.Suspended,
       ContractAbandoned: ContractEvents.Abandoned,
+      ScoreChanged: ReputationEvents.ScoreChanged,
     });
   });
 
@@ -44,6 +47,7 @@ describe('DistributionEventHandler', () => {
     const cancel = { execute: vi.fn() };
     const removeSuspended = { execute: vi.fn() };
     const penalize = { execute: vi.fn() };
+    const updateScore = { execute: vi.fn() };
     const handler = new DistributionEventHandler(
       sync as unknown as SyncQueueEntry,
       open as unknown as OpenRound,
@@ -52,6 +56,7 @@ describe('DistributionEventHandler', () => {
       { execute: vi.fn() } as unknown as RevertSelection,
       removeSuspended as unknown as RemoveSuspendedFreelancer,
       penalize as unknown as PenalizeAbandonment,
+      updateScore as unknown as UpdateQueueScore,
     );
     await handler.handle(event(ProfileEvents.Approved, { userId: 'u1', level: 'iniciante' }));
     await handler.handle(
@@ -69,5 +74,7 @@ describe('DistributionEventHandler', () => {
     expect(removeSuspended.execute).toHaveBeenCalledWith('u2');
     await handler.handle(event(ContractEvents.Abandoned, { freelancerId: 'f9', contractId: 'k1' }));
     expect(penalize.execute).toHaveBeenCalledWith('f9');
+    await handler.handle(event(ReputationEvents.ScoreChanged, { userId: 'f9', score: 0.62 }));
+    expect(updateScore.execute).toHaveBeenCalledWith('f9', 0.62);
   });
 });

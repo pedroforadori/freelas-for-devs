@@ -8,6 +8,7 @@ import { DatabaseContext } from '../../shared/infra/database/database-context.js
 import { ID_GENERATOR } from '../../shared/infra/id/uuid-v7.generator.js';
 import type { Clock } from '../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../shared/kernel/domain-event.js';
+import { ProfilesFacade } from './application/facade.js';
 import { PROFILES_DEPS, type ProfilesDeps } from './application/ports.js';
 import {
   GetMyFreelancerProfile,
@@ -36,41 +37,49 @@ const USE_CASES = [
   ReviewFreelancerProfile,
   ListFreelancersForReview,
   ManageClientProfile,
+  ProfilesFacade,
 ] as const;
+
+const sharedProviders = [
+  {
+    provide: PROFILES_DEPS,
+    inject: [ENV, DatabaseContext, ID_GENERATOR, CLOCK, AUDIT_LOGGER, MAILER],
+    useFactory: (
+      env: Env,
+      ctx: DatabaseContext,
+      ids: IdGenerator,
+      clock: Clock,
+      audit: AuditLogger,
+      mailer: Mailer,
+    ): ProfilesDeps => ({
+      profiles: new DrizzleFreelancerProfileRepository(ctx, ids),
+      clients: new DrizzleClientProfileRepository(ctx),
+      catalog: new DrizzleCatalog(ctx),
+      levelHistory: new DrizzleLevelHistory(ctx),
+      people: new DrizzlePeopleDirectory(ctx),
+      reviewQueue: new DrizzleReviewQueue(ctx),
+      mailer,
+      audit,
+      uow: ctx,
+      clock,
+      ids,
+      webAppUrl: env.WEB_APP_URL,
+    }),
+  },
+  ...USE_CASES.map((UseCase) => ({
+    provide: UseCase,
+    inject: [PROFILES_DEPS],
+    useFactory: (deps: ProfilesDeps) => new UseCase(deps),
+  })),
+];
 
 @Module({
   controllers: [ProfilesController, AdminProfilesController],
-  providers: [
-    {
-      provide: PROFILES_DEPS,
-      inject: [ENV, DatabaseContext, ID_GENERATOR, CLOCK, AUDIT_LOGGER, MAILER],
-      useFactory: (
-        env: Env,
-        ctx: DatabaseContext,
-        ids: IdGenerator,
-        clock: Clock,
-        audit: AuditLogger,
-        mailer: Mailer,
-      ): ProfilesDeps => ({
-        profiles: new DrizzleFreelancerProfileRepository(ctx, ids),
-        clients: new DrizzleClientProfileRepository(ctx),
-        catalog: new DrizzleCatalog(ctx),
-        levelHistory: new DrizzleLevelHistory(ctx),
-        people: new DrizzlePeopleDirectory(ctx),
-        reviewQueue: new DrizzleReviewQueue(ctx),
-        mailer,
-        audit,
-        uow: ctx,
-        clock,
-        ids,
-        webAppUrl: env.WEB_APP_URL,
-      }),
-    },
-    ...USE_CASES.map((UseCase) => ({
-      provide: UseCase,
-      inject: [PROFILES_DEPS],
-      useFactory: (deps: ProfilesDeps) => new UseCase(deps),
-    })),
-  ],
+  providers: sharedProviders,
+  exports: [ProfilesFacade],
 })
 export class ProfilesModule {}
+
+/** Sem controllers: a reputação (worker) promove freelancers pela fachada. */
+@Module({ providers: sharedProviders, exports: [ProfilesFacade] })
+export class ProfilesWorkerModule {}

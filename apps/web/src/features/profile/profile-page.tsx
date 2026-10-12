@@ -16,6 +16,7 @@ import { errorMessage } from '@/lib/problem';
 import { Portfolio } from './portfolio';
 import { ProfileForm } from './profile-form';
 import { useFreelancerProfile, useSetFreelancerProfile, useStacks } from './queries';
+import { MyReputation } from '@/features/reputation/reputation-card';
 
 const STATUS_LABEL: Record<FreelancerProfile['status'], string> = {
   DRAFT: 'Rascunho',
@@ -90,6 +91,7 @@ function FreelancerProfileSection() {
         histórico e portfólio falam por você.
       </SectionHeading>
       <SubmissionPanel profile={profile.data} />
+      <MyReputation />
       <ProfileForm key={profile.data.updatedAt} profile={profile.data} stacks={stacks.data} />
       <Portfolio profile={profile.data} stacks={stacks.data} />
     </>

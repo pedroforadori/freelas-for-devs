@@ -8,6 +8,7 @@ import { healthRoutes } from './modules/health.js';
 import { leadRoutes } from './modules/leads.js';
 import { disputeRoutes } from './modules/disputes.js';
 import { messagingRoutes } from './modules/messaging.js';
+import { reputationRoutes } from './modules/reputation.js';
 import { profileRoutes } from './modules/profiles.js';
 import { projectRoutes } from './modules/projects.js';
 import { settingRoutes } from './modules/settings.js';
@@ -26,6 +27,7 @@ export const apiRoutes = {
   contracts: contractRoutes,
   messaging: messagingRoutes,
   disputes: disputeRoutes,
+  reputation: reputationRoutes,
 } as const;
 
 export const allRoutes = (): RouteContract[] =>

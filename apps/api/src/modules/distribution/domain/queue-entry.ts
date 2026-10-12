@@ -15,6 +15,8 @@ export interface QueueEntrySnapshot {
   noResponses: number;
   selections: number;
   abandonments: number;
+  /** Desempenho (0 a 1; 0,5 neutro) calculado pela reputação. */
+  score: number;
   monitoringSince: Date | null;
   updatedAt: Date;
   version: number;
@@ -59,6 +61,7 @@ export class QueueEntry extends AggregateRoot {
         noResponses: 0,
         selections: 0,
         abandonments: 0,
+        score: 0.5,
         monitoringSince: null,
         updatedAt: now,
       },
@@ -77,6 +80,14 @@ export class QueueEntry extends AggregateRoot {
   }
   get state(): QueueState {
     return this.props.state;
+  }
+  get score(): number {
+    return this.props.score;
+  }
+
+  updateScore(score: number, now: Date): void {
+    this.props.score = score;
+    this.props.updatedAt = now;
   }
 
   changeLevel(levelSlug: string, now: Date): void {

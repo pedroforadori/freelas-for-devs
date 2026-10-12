@@ -40,6 +40,8 @@ export interface CandidateQuery {
   requiredStacks: string[];
   clientId: string;
   maxOpenInvitations: number;
+  /** Quanto o melhor desempenho adianta a vez (e o pior atrasa), em horas. */
+  performanceBonusHours: number;
   limit: number;
 }
 

@@ -9,7 +9,7 @@ import { FreelancerProfile, type LevelChange } from '../domain/freelancer-profil
 import { levelChangedEmail, profileApprovedEmail, profileChangesRequestedEmail } from './emails.js';
 import type { ProfilesDeps, ReviewQueueItem } from './ports.js';
 
-abstract class ProfilesUseCase {
+export abstract class ProfilesUseCase {
   constructor(protected readonly deps: ProfilesDeps) {}
 
   protected async loadOrCreate(userId: string): Promise<FreelancerProfile> {

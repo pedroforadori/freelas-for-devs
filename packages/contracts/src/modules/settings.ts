@@ -170,6 +170,15 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'dias' },
     usedFrom: 'F8',
   }),
+  'queue.performanceBonusHours': define({
+    schema: z.number().int().min(0).max(336),
+    default: 72,
+    label: 'Bônus de desempenho na fila',
+    description:
+      'Quanto o melhor desempenho adianta a vez (e o pior atrasa) entre os que não têm prioridade. 0 = só ordem de chegada.',
+    input: { kind: 'integer', unit: 'horas' },
+    usedFrom: 'F9',
+  }),
   'queue.abandonPenaltyDays': define({
     schema: z.number().int().min(0).max(180),
     default: 30,

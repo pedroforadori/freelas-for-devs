@@ -20,6 +20,7 @@ import { MessagingModule } from '../messaging/messaging.module.js';
 import { DISTRIBUTION_DEPS, type DistributionDeps } from './application/ports.js';
 import {
   PenalizeAbandonment,
+  UpdateQueueScore,
   CancelProjectRound,
   ExpireOverdueInvitations,
   FinalizeHiring,
@@ -54,6 +55,7 @@ const USE_CASES = [
   ExpireOverdueInvitations,
   RemoveSuspendedFreelancer,
   PenalizeAbandonment,
+  UpdateQueueScore,
   SelectProposal,
   FinalizeHiring,
   CancelProjectRound,
@@ -90,7 +92,7 @@ const sharedProviders = [
     ): DistributionDeps => ({
       rounds: new DrizzleRoundRepository(ctx, ids),
       queue: new DrizzleQueueRepository(ctx, ids),
-      queries: new DrizzleDistributionQueries(ctx),
+      queries: new DrizzleDistributionQueries(ctx, settings),
       projects,
       people: new DrizzleDistributionPeople(ctx),
       files,

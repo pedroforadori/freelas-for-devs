@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLevels } from '@/features/profile/queries';
+import { ReputationCard } from '@/features/reputation/reputation-card';
 import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
 
@@ -166,6 +167,7 @@ export function FreelancerReview({ userId }: { userId: string }) {
       </div>
 
       <Decision profile={p} />
+      <AdminReputation userId={userId} />
       <ContractStats userId={userId} />
 
       <Card tone="white" className="flex flex-col gap-4">
@@ -275,4 +277,16 @@ function ContractStats({ userId }: { userId: string }) {
       </dl>
     </Card>
   );
+}
+
+function AdminReputation({ userId }: { userId: string }) {
+  const query = useQuery({
+    queryKey: ['admin', 'freelancer', userId, 'reputation'],
+    queryFn: () =>
+      unwrap(
+        api.GET('/v1/admin/freelancers/{userId}/reputation', { params: { path: { userId } } }),
+      ),
+  });
+  if (!query.data?.level) return null;
+  return <ReputationCard reputation={query.data} viewer="admin" />;
 }

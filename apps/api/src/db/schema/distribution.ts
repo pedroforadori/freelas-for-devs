@@ -10,6 +10,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -43,6 +44,8 @@ export const queueEntries = pgTable(
     declines: integer().notNull().default(0),
     noResponses: integer().notNull().default(0),
     selections: integer().notNull().default(0),
+    /** Desempenho (0 a 1; 0,5 neutro), atualizado pela reputação: ajusta a vez na fila. */
+    score: real().notNull().default(0.5),
     /** Contratos abandonados (penalidade na fila; entra na reputação da F9). */
     abandonments: integer().notNull().default(0),
     monitoringSince: timestamp({ withTimezone: true }),

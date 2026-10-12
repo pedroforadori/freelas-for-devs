@@ -15,6 +15,7 @@ import {
   OpenRound,
   PenalizeAbandonment,
   RemoveSuspendedFreelancer,
+  UpdateQueueScore,
   RevertSelection,
   SyncQueueEntry,
 } from '../application/use-cases.js';
@@ -29,6 +30,7 @@ export const DistributionEventTypes = {
   ContractExpired: 'contracts.ContractExpired',
   UserSuspended: 'identity.UserSuspended',
   ContractAbandoned: 'contracts.ContractAbandoned',
+  ScoreChanged: 'reputation.ScoreChanged',
 } as const;
 
 @Injectable()
@@ -42,6 +44,7 @@ export class DistributionEventHandler implements DomainEventHandler {
     @Inject(RevertSelection) private readonly revert: RevertSelection,
     @Inject(RemoveSuspendedFreelancer) private readonly removeSuspended: RemoveSuspendedFreelancer,
     @Inject(PenalizeAbandonment) private readonly penalize: PenalizeAbandonment,
+    @Inject(UpdateQueueScore) private readonly updateScore: UpdateQueueScore,
   ) {}
 
   async handle(event: DomainEvent): Promise<void> {
@@ -70,6 +73,9 @@ export class DistributionEventHandler implements DomainEventHandler {
         break;
       case DistributionEventTypes.ContractAbandoned:
         await this.penalize.execute(String(payload.freelancerId));
+        break;
+      case DistributionEventTypes.ScoreChanged:
+        await this.updateScore.execute(String(payload.userId), Number(payload.score));
         break;
     }
   }

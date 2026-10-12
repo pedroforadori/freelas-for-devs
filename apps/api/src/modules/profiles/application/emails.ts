@@ -30,11 +30,20 @@ export const profileChangesRequestedEmail = (
     { label: 'Ajustar perfil', url },
   );
 
-export const levelChangedEmail = (to: string, name: string, levelName: string, url: string) =>
+export const levelChangedEmail = (
+  to: string,
+  name: string,
+  levelName: string,
+  url: string,
+  reason?: string,
+) =>
   simple(
     to,
     'profiles.level-changed',
     `Seu nível agora é ${levelName}`,
-    [`Olá, ${name}! Seu nível na plataforma foi atualizado para ${levelName}.`],
+    [
+      `Olá, ${name}! Seu nível na plataforma foi atualizado para ${levelName}.`,
+      ...(reason ? [reason] : []),
+    ],
     { label: 'Ver meu perfil', url },
   );

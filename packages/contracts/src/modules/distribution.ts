@@ -4,6 +4,7 @@ import { cursorPage, cursorQuerySchema } from '../common/pagination.js';
 import { defineRoute } from '../http/route.js';
 import { levelSchema, projectTypeSchema, stackSlugSchema } from './catalog.js';
 import { clientScopeSchema } from './projects.js';
+import { publicReputationSchema } from './reputation.js';
 
 /** Ciclo do convite e da proposta (docs/architecture.md §4.2). */
 export const InvitationStatus = {
@@ -158,6 +159,8 @@ export const proposalForClientSchema = z
       level: levelSchema.nullable(),
       stacks: z.array(stackSlugSchema),
       portfolioItems: z.number().int(),
+      /** Histórico real na plataforma (sem o score interno da fila). */
+      reputation: publicReputationSchema,
     }),
     amountCents: z.number().int(),
     deadlineDays: z.number().int(),
@@ -208,6 +211,8 @@ export const adminQueueEntrySchema = z
     declines: z.number().int(),
     noResponses: z.number().int(),
     selections: z.number().int(),
+    /** Desempenho (0 a 1; 0,5 neutro): adianta ou atrasa a vez entre os sem prioridade. */
+    score: z.number(),
     /** Perfil disponível e aprovado (fora disso não recebe convites). */
     available: z.boolean(),
   })

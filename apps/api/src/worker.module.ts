@@ -4,6 +4,7 @@ import { ContractsWorkerModule } from './modules/contracts/contracts.module.js';
 import { DistributionWorkerModule } from './modules/distribution/distribution.module.js';
 import { FilesWorkerModule } from './modules/files/files.module.js';
 import { ProjectsWorkerModule } from './modules/projects/projects.module.js';
+import { ReputationWorkerModule } from './modules/reputation/reputation.module.js';
 import { SettingsReaderModule } from './modules/settings/settings.module.js';
 import { MailModule, MailWorkerModule } from './shared/infra/mail/mail.module.js';
 import { OutboxRelayModule } from './shared/infra/outbox/outbox.module.js';
@@ -26,6 +27,7 @@ import { DomainEventsWorkerModule } from './shared/infra/queue/domain-events.pro
     ProjectsWorkerModule,
     DistributionWorkerModule,
     ContractsWorkerModule,
+    ReputationWorkerModule,
   ],
 })
 export class WorkerModule {}

@@ -39,6 +39,7 @@ abstract class DistributionUseCase {
         requiredStacks: round.requiredStacks,
         clientId: round.clientId,
         maxOpenInvitations: round.params.maxOpenInvitesPerFreelancer,
+        performanceBonusHours: await this.deps.settings.get('queue.performanceBonusHours'),
         limit: slots,
       });
       if (freelancerIds.length > 0) {
@@ -321,6 +322,18 @@ export class RemoveSuspendedFreelancer extends DistributionUseCase {
       });
       await this.notify(notices);
     }
+  }
+}
+
+/** Reputação recalculada (F9): o novo score passa a ajustar a vez na fila. */
+export class UpdateQueueScore extends DistributionUseCase {
+  execute(freelancerId: string, score: number): Promise<void> {
+    return this.deps.uow.run(async () => {
+      const entry = await this.deps.queue.find(freelancerId);
+      if (!entry || entry.score === score) return;
+      entry.updateScore(score, this.deps.clock.now());
+      await this.deps.queue.save(entry);
+    });
   }
 }
 

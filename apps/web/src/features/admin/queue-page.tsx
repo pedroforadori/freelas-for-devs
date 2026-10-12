@@ -109,6 +109,9 @@ export function QueuePage() {
                 <th className="p-3">Rodadas sem escolha</th>
                 <th className="p-3">Recusas / sem resposta</th>
                 <th className="p-3">Contratações</th>
+                <th className="p-3" title="0,5 = neutro; acima adianta a vez, abaixo atrasa">
+                  Desempenho
+                </th>
                 {state === 'MONITORING' ? <th className="p-3" /> : null}
               </tr>
             </thead>
@@ -136,6 +139,7 @@ export function QueuePage() {
                     {entry.declines} / {entry.noResponses}
                   </td>
                   <td className="p-3">{entry.selections}</td>
+                  <td className="p-3">{entry.score.toFixed(2).replace('.', ',')}</td>
                   {state === 'MONITORING' ? (
                     <td className="p-3">
                       <Button

@@ -33,6 +33,8 @@ import {
   portfolioItems,
 } from '../../../db/schema/profiles.js';
 import { projects } from '../../../db/schema/projects.js';
+import { freelancerStats } from '../../../db/schema/reputation.js';
+import type { SettingsReader } from '../../../shared/application/settings-reader.js';
 import type { DatabaseContext } from '../../../shared/infra/database/database-context.js';
 import {
   appendToOutbox,
@@ -67,10 +69,22 @@ const PROPOSAL_STATUSES: InvitationStatus[] = [
 ];
 
 /** Ordem da fila (docs/architecture.md §6): prioridade por espera, depois round-robin. */
-const queueOrder = [
+/**
+ * Ordem da fila (docs/architecture.md §6): prioridade (quem espera há mais tempo) e, depois, a
+ * chave de justiça `last_invited_at − bônus × (score − 0,5) × 2` — desempenho adianta ou atrasa
+ * a vez em até `bônus` horas. Nunca convidado vai na frente; score neutro (0,5) não muda nada.
+ */
+const fairnessKey = (bonusHours: number, alias?: string) => {
+  const q = alias ? sql.raw(alias) : null;
+  const lastInvited = q ? sql`${q}.last_invited_at` : sql`${queueEntries.lastInvitedAt}`;
+  const score = q ? sql`${q}.score` : sql`${queueEntries.score}`;
+  return sql`${lastInvited} - interval '1 second' * (${bonusHours * 3600} * (${score} - 0.5) * 2)`;
+};
+
+const queueOrder = (bonusHours: number) => [
   sql`(${queueEntries.tier} = 'PRIORITY') desc`,
   sql`${queueEntries.prioritySince} asc nulls last`,
-  sql`${queueEntries.lastInvitedAt} asc nulls first`,
+  sql`${fairnessKey(bonusHours)} asc nulls first`,
   asc(queueEntries.userId),
 ];
 
@@ -341,7 +355,7 @@ export class DrizzleQueueRepository implements QueueRepository {
           ),
         ),
       )
-      .orderBy(...queueOrder)
+      .orderBy(...queueOrder(query.performanceBonusHours))
       .limit(query.limit)
       .for('update', { of: q, skipLocked: true });
     return rows.map((row) => row.userId);
@@ -355,7 +369,10 @@ interface RankedRow {
 }
 
 export class DrizzleDistributionQueries implements DistributionQueries {
-  constructor(private readonly ctx: DatabaseContext) {}
+  constructor(
+    private readonly ctx: DatabaseContext,
+    private readonly settings: SettingsReader,
+  ) {}
 
   async listForFreelancer(input: {
     freelancerId: string;
@@ -450,9 +467,13 @@ export class DrizzleDistributionQueries implements DistributionQueries {
           sql<number>`(select count(*) from ${portfolioItems} where ${portfolioItems.userId} = ${users.id})`.mapWith(
             Number,
           ),
+        completedContracts: freelancerStats.completedContracts,
+        ratingCount: freelancerStats.ratingCount,
+        ratingSum: freelancerStats.ratingSum,
       })
       .from(invitations)
       .innerJoin(users, eq(users.id, invitations.freelancerId))
+      .leftJoin(freelancerStats, eq(freelancerStats.userId, users.id))
       .leftJoin(freelancerProfiles, eq(freelancerProfiles.userId, users.id))
       .leftJoin(levels, eq(levels.slug, freelancerProfiles.levelSlug))
       .where(and(eq(invitations.roundId, round.id), inArray(invitations.status, PROPOSAL_STATUSES)))
@@ -472,6 +493,14 @@ export class DrizzleDistributionQueries implements DistributionQueries {
               : null,
           stacks: row.stacks,
           portfolioItems: row.portfolioItems,
+          reputation: {
+            completedContracts: row.completedContracts ?? 0,
+            ratingCount: row.ratingCount ?? 0,
+            ratingAvg:
+              row.ratingCount && row.ratingSum
+                ? Math.round((row.ratingSum / row.ratingCount) * 10) / 10
+                : null,
+          },
         },
         amountCents: row.amountCents ?? 0,
         deadlineDays: row.deadlineDays ?? 0,
@@ -483,13 +512,14 @@ export class DrizzleDistributionQueries implements DistributionQueries {
 
   /** Posição calculada com a mesma ordem usada nos convites, entre os ATIVOS do nível. */
   private async ranked(filter: { levelSlug: string | null; state: QueueState }) {
+    const bonusHours = await this.settings.get('queue.performanceBonusHours');
     const result = await this.ctx.executor.execute<RankedRow>(sql`
       select q.*, u.display_name,
         (fp.status = 'APPROVED' and fp.available and u.status = 'ACTIVE') as available,
         case when q.state = 'ACTIVE' then row_number() over (
           partition by q.level_slug, q.state
           order by (q.tier = 'PRIORITY') desc, q.priority_since asc nulls last,
-                   q.last_invited_at asc nulls first, q.user_id asc
+                   ${fairnessKey(bonusHours, 'q')} asc nulls first, q.user_id asc
         ) end as position
       from ${queueEntries} q
       join ${users} u on u.id = q.user_id
@@ -516,6 +546,7 @@ export class DrizzleDistributionQueries implements DistributionQueries {
       declines: Number(row.declines),
       noResponses: Number(row.no_responses),
       selections: Number(row.selections),
+      score: Number(row.score),
       available: Boolean(row.available),
     };
   }

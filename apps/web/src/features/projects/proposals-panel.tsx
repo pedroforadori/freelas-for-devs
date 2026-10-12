@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { errorMessage } from '@/lib/problem';
 import { formatPriceRange } from './format';
 import { projectKey } from './queries';
+import { TrackRecord } from '@/features/reputation/reputation-card';
 
 const brl = (cents: number) => formatPriceRange({ minCents: cents, maxCents: cents });
 
@@ -108,6 +109,7 @@ function ProposalCard({
             {freelancer.stacks.slice(0, 6).map((slug) => (
               <Badge key={slug}>{slug}</Badge>
             ))}
+            <TrackRecord reputation={freelancer.reputation} />
             <Badge>{freelancer.portfolioItems} no portfólio</Badge>
           </div>
         </div>

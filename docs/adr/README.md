@@ -21,5 +21,6 @@
 | 0017 | [Entregas em rodadas, aprovação e liberação do pagamento (F7)](./0017-entregas-liberacao.md)    | Aceito                      |
 | 0018 | [Chat em tempo real e moderação de contato (F3)](./0018-chat-moderacao.md)                      | Aceito                      |
 | 0019 | [Fora de escopo, disputas e abandono (F8)](./0019-fora-de-escopo-disputas.md)                   | Aceito                      |
+| 0020 | [Reputação, score e progressão de nível (F9)](./0020-reputacao-niveis.md)                       | Aceito                      |
 
 Novo ADR: copie o formato acima, numere sequencialmente e nunca edite a decisão de um ADR aceito. Para mudar uma decisão, crie um ADR que a substitua.

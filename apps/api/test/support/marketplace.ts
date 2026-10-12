@@ -78,8 +78,10 @@ export const marketplace = (t: TestApp, admin: () => BrowserSession) => {
   };
 
   /** Cliente com projeto publicado e escopo aprovado; Ana convidada (rodada aberta). */
-  const projectInDistribution = async (options: { attachments?: boolean } = {}) => {
-    const ana = await freelancer('Ana');
+  const projectInDistribution = async (
+    options: { attachments?: boolean; freelancer?: Person } = {},
+  ) => {
+    const ana = options.freelancer ?? (await freelancer('Ana'));
     const client = await register('CLIENT', 'Cliente');
     const attachmentIds = options.attachments ? [await upload(client, 'PROJECT_ATTACHMENT')] : [];
     const created = await client.browser.request('POST', '/v1/projects', {

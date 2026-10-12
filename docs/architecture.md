@@ -391,7 +391,7 @@ Prefixo `/v1`. Respostas de erro no formato **RFC 9457 (problem+json)** com `cod
 7. **Pagamento expira**: o escolhido vai para VOIDED, sem penalizar o freelancer. As propostas ON_HOLD voltam a PROPOSAL_SUBMITTED e o cliente pode escolher outra. Se não houver nenhuma, _preencher_.
 8. **Rodada ociosa** (`T_round_idle` sem escolha do cliente): lembretes ao cliente e alerta ao Admin. Se o cliente abandonar ou cancelar: propostas → VOIDED, e quem havia proposto **recebe `tier = PRIORITY` sem incrementar `rounds_without_selection`** (não foi rejeitado).
 9. **Reativação**: o Admin marca o freelancer em acompanhamento como reativado → `state = ACTIVE`, `tier = PRIORITY`, `priority_since = now`, contador zerado.
-10. **Desempenho**: o job noturno recalcula o `score` (média ponderada de nota, % no prazo, 1 − taxa de abandono, 1 − taxa de não resposta, com suavização bayesiana para poucos dados). Abandono aplica sanção, `tier = NORMAL` e `last_invited_at = now + penalidade`.
+10. **Desempenho**: o job noturno recalcula o `score` (média ponderada de nota, % no prazo, 1 − taxa de abandono, 1 − taxa de não resposta, com suavização bayesiana para poucos dados). Abandono aplica sanção, `tier = NORMAL` e `last_invited_at = now + penalidade`. _Implementado na F9 (ADR-0020): suavização com prior 0,5 e peso 4; bônus configurável em `queue.performanceBonusHours`; regras de progressão por nível em `/admin/niveis`._
 
 **Casos de borda:**
 
