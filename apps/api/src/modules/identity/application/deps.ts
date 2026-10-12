@@ -37,6 +37,8 @@ export interface IdentityDeps {
   clock: Clock;
   ids: IdGenerator;
   settings: IdentitySettings;
+  /** Beta fechado: só e-mails convidados criam conta (módulo de leads decide). */
+  signupGate: { allows(email: string): Promise<boolean> };
 }
 
 export const IDENTITY_DEPS = Symbol('IDENTITY_DEPS');

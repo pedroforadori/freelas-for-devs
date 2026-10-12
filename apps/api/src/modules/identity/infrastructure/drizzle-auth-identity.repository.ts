@@ -29,4 +29,8 @@ export class DrizzleAuthIdentityRepository implements AuthIdentityRepository {
   }): Promise<void> {
     await this.ctx.executor.insert(authIdentities).values(input).onConflictDoNothing();
   }
+
+  async unlinkAll(userId: string): Promise<void> {
+    await this.ctx.executor.delete(authIdentities).where(eq(authIdentities.userId, userId));
+  }
 }

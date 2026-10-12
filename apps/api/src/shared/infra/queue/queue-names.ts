@@ -7,6 +7,7 @@ export const QueueName = {
   Distribution: 'distribution',
   Contracts: 'contracts',
   Reputation: 'reputation',
+  Privacy: 'privacy',
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];

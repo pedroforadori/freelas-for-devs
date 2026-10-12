@@ -100,7 +100,7 @@ export const contactViolationSchema = z
       userId: z.uuid(),
       displayName: z.string(),
       email: z.string(),
-      status: z.enum(['ACTIVE', 'SUSPENDED']),
+      status: z.enum(['ACTIVE', 'SUSPENDED', 'DELETED']),
       /** Infrações nos últimos 30 dias (inclui esta). */
       recentViolations: z.number().int(),
     }),

@@ -1,5 +1,7 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import type { Redis } from 'ioredis';
+import { LeadsFacade } from '../leads/application/beta.js';
+import { LeadsModule } from '../leads/leads.module.js';
 import { AUDIT_LOGGER, type AuditLogger } from '../../shared/application/audit-log.js';
 import { MAILER, type Mailer } from '../../shared/application/mailer.js';
 import { SECRET_CIPHER, type SecretCipher } from '../../shared/application/secret-cipher.js';
@@ -118,6 +120,7 @@ const USE_CASES = [
  */
 @Global()
 @Module({
+  imports: [LeadsModule],
   controllers: [AuthController, OAuthController],
   providers: [
     {
@@ -151,6 +154,7 @@ const USE_CASES = [
         REDIS,
         JoseAccessTokenService,
         SECRET_CIPHER,
+        LeadsFacade,
       ],
       useFactory: (
         env: Env,
@@ -162,7 +166,9 @@ const USE_CASES = [
         redis: Redis,
         accessTokens: JoseAccessTokenService,
         cipher: SecretCipher,
+        leads: LeadsFacade,
       ): IdentityDeps => ({
+        signupGate: { allows: (email) => leads.signupAllowed(email) },
         users: new DrizzleUserRepository(ctx, ids),
         refreshTokens: new DrizzleRefreshTokenRepository(ctx),
         oneTimeTokens: new DrizzleOneTimeTokenRepository(ctx),

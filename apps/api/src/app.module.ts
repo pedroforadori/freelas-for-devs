@@ -9,6 +9,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
+import { PrivacyModule } from './modules/privacy/privacy.module.js';
 import { ReputationModule } from './modules/reputation/reputation.module.js';
 import { ProfilesModule } from './modules/profiles/profiles.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
@@ -60,6 +61,7 @@ export const infrastructureModules = [
     ContractsModule,
     MessagingModule,
     ReputationModule,
+    PrivacyModule,
   ],
   controllers: [OpenApiController],
   providers: [

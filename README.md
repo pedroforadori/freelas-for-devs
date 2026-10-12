@@ -5,6 +5,7 @@ por nível que ajuda iniciantes a conseguir o primeiro projeto, sem vantagem com
 
 - Arquitetura e plano do MVP: [`docs/architecture.md`](docs/architecture.md)
 - Decisões (ADRs): [`docs/adr/`](docs/adr/README.md)
+- Operação: [`docs/runbooks/`](docs/runbooks/README.md) · Segurança: [`docs/security/owasp-checklist.md`](docs/security/owasp-checklist.md)
 
 ## Estrutura
 

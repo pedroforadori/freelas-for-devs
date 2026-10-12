@@ -192,6 +192,11 @@ export class InMemoryAuthIdentities implements AuthIdentityRepository {
     this.links.push(input);
     return Promise.resolve();
   }
+  unlinkAll(userId: string) {
+    for (let i = this.links.length - 1; i >= 0; i -= 1)
+      if (this.links[i]!.userId === userId) this.links.splice(i, 1);
+    return Promise.resolve();
+  }
 }
 
 export class InMemoryMfa implements MfaRepository {
@@ -315,6 +320,7 @@ export const createIdentityTestDeps = () => {
       mfaChallengeTtlMs: 5 * 60_000,
       webAppUrl: 'https://app.test',
     },
+    signupGate: { allows: () => Promise.resolve(true) },
   } satisfies IdentityDeps;
   return deps;
 };

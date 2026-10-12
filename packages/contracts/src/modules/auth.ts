@@ -151,6 +151,7 @@ export const OAuthErrorReason = {
   ProviderFailed: 'oauth-provedor',
   EmailNotVerified: 'oauth-email-nao-verificado',
   AccountSuspended: 'conta-suspensa',
+  BetaClosed: 'beta-fechado',
 } as const;
 
 export type Me = z.infer<typeof meSchema>;

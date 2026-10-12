@@ -300,6 +300,9 @@ export class Moderate extends MessagingUseCase {
       metadata: { userId: violation.userId },
       request: meta,
     });
+    // Passado o prazo de retenção, só a versão mascarada continua guardada.
+    if (violation.originalEncrypted === '')
+      return 'O texto original foi apagado ao fim do prazo de retenção; ficou só a versão mascarada.';
     return this.deps.cipher.decrypt(violation.originalEncrypted);
   }
 

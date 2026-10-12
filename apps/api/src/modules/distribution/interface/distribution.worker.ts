@@ -29,6 +29,7 @@ export const DistributionEventTypes = {
   ContractFunded: 'contracts.ContractFunded',
   ContractExpired: 'contracts.ContractExpired',
   UserSuspended: 'identity.UserSuspended',
+  UserDeleted: 'identity.UserDeleted',
   ContractAbandoned: 'contracts.ContractAbandoned',
   ScoreChanged: 'reputation.ScoreChanged',
 } as const;
@@ -69,6 +70,7 @@ export class DistributionEventHandler implements DomainEventHandler {
         await this.revert.execute(String(payload.projectId));
         break;
       case DistributionEventTypes.UserSuspended:
+      case DistributionEventTypes.UserDeleted:
         await this.removeSuspended.execute(String(payload.userId));
         break;
       case DistributionEventTypes.ContractAbandoned:

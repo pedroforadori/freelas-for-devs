@@ -20,3 +20,10 @@ export const leads = pgTable(
   },
   (table) => [uniqueIndex('leads_email_profile_key').on(table.email, table.profile)],
 );
+
+/** Convites do beta fechado: com `access.signupMode = INVITE_ONLY`, só esses e-mails criam conta. */
+export const betaInvites = pgTable('beta_invites', {
+  email: text().primaryKey(),
+  invitedBy: uuid(),
+  invitedAt: timestamp({ withTimezone: true }).notNull(),
+});

@@ -102,6 +102,8 @@ export interface AuthIdentityRepository {
     providerUserId: string;
     email: string;
   }): Promise<void>;
+  /** Remove todos os vínculos de login social (exclusão da conta). */
+  unlinkAll(userId: string): Promise<void>;
 }
 
 export interface PasswordHasher {

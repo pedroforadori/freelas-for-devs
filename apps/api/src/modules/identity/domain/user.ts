@@ -1,7 +1,8 @@
 import { permissionsFor, type Permission, type Role } from '@f4d/contracts';
 import { AggregateRoot } from '../../../shared/kernel/aggregate-root.js';
 
-export type UserStatus = 'ACTIVE' | 'SUSPENDED';
+/** DELETED: conta excluída a pedido do titular (LGPD), com os dados pessoais anonimizados. */
+export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'DELETED';
 
 export interface UserSnapshot {
   id: string;
@@ -23,6 +24,7 @@ export const UserEvents = {
   RoleGranted: 'identity.UserRoleGranted',
   Suspended: 'identity.UserSuspended',
   Reinstated: 'identity.UserReinstated',
+  Deleted: 'identity.UserDeleted',
 } as const;
 
 /** Agregado de identidade: credenciais, papéis e situação da conta. Perfis vivem em outro módulo. */
@@ -200,10 +202,25 @@ export class User extends AggregateRoot {
   }
 
   reinstate(now: Date): boolean {
-    if (this.props.status === 'ACTIVE') return false;
+    if (this.props.status !== 'SUSPENDED') return false;
     this.props.status = 'ACTIVE';
     this.record(UserEvents.Reinstated, now, { userId: this.id });
     return true;
+  }
+
+  /**
+   * Exclusão a pedido do titular: o registro fica (contratos, razão e auditoria apontam para ele),
+   * mas sem nada que identifique a pessoa. O e-mail vira um endereço inválido e único, então o
+   * original fica livre para um novo cadastro.
+   */
+  anonymize(now: Date): void {
+    if (this.props.status === 'DELETED') return;
+    this.props.email = `excluida-${this.id}@contas.invalid`;
+    this.props.displayName = 'Conta excluída';
+    this.props.passwordHash = null;
+    this.props.emailVerifiedAt = null;
+    this.props.status = 'DELETED';
+    this.record(UserEvents.Deleted, now, { userId: this.id });
   }
 
   toSnapshot(): UserSnapshot {

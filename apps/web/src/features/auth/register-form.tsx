@@ -47,7 +47,13 @@ export function RegisterForm() {
 
   const form = useForm<RegisterInput, unknown, RegisterOutput>({
     resolver: zodResolver(registerRequestSchema),
-    defaultValues: { email: '', password: '', displayName: '', role: initialRole },
+    // Link do convite do beta traz o e-mail convidado.
+    defaultValues: {
+      email: params.get('email') ?? '',
+      password: '',
+      displayName: '',
+      role: initialRole,
+    },
   });
   const { errors, isSubmitting } = form.formState;
   const role = useWatch({ control: form.control, name: 'role' });

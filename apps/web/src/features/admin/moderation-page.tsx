@@ -81,8 +81,8 @@ function ViolationCard({ violation }: { violation: ContactViolation }) {
   return (
     <Card tone="white" className="flex flex-col gap-4 border border-dark">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={user.status === 'SUSPENDED' ? 'dark' : 'neutral'}>
-          {user.status === 'SUSPENDED' ? 'Suspenso' : 'Ativo'}
+        <Badge tone={user.status === 'ACTIVE' ? 'neutral' : 'dark'}>
+          {{ ACTIVE: 'Ativo', SUSPENDED: 'Suspenso', DELETED: 'Conta excluída' }[user.status]}
         </Badge>
         <Badge tone={repeated ? 'accent' : 'neutral'}>
           {user.recentViolations} {user.recentViolations === 1 ? 'tentativa' : 'tentativas'} em 30
@@ -125,7 +125,9 @@ function ViolationCard({ violation }: { violation: ContactViolation }) {
           </Button>
         ) : null}
       </div>
-      <AccountActions userId={user.userId} suspended={user.status === 'SUSPENDED'} />
+      {user.status === 'DELETED' ? null : (
+        <AccountActions userId={user.userId} suspended={user.status === 'SUSPENDED'} />
+      )}
     </Card>
   );
 }

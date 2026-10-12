@@ -26,7 +26,7 @@ export const users = pgTable(
     /** Nulo para contas criadas só via OAuth. */
     passwordHash: text(),
     displayName: text().notNull(),
-    status: text().$type<'ACTIVE' | 'SUSPENDED'>().notNull().default('ACTIVE'),
+    status: text().$type<'ACTIVE' | 'SUSPENDED' | 'DELETED'>().notNull().default('ACTIVE'),
     termsAcceptedAt: timestamp({ withTimezone: true }).notNull(),
     version: integer().notNull().default(0),
     ...timestamps,

@@ -3,6 +3,7 @@ import type { RequestMeta } from '../../../shared/application/audit-log.js';
 import { HOUR_MS } from '../../../shared/kernel/clock.js';
 import {
   AccountSuspendedError,
+  BetaClosedError,
   EmailAlreadyRegisteredError,
   InvalidCredentialsError,
   InvalidOneTimeTokenError,
@@ -111,6 +112,7 @@ export class RegisterUser extends IdentityUseCase {
     const { users, hasher, uow, clock, ids, audit, settings } = this.deps;
     const policy = checkPassword(input.password, input);
     if (!policy.ok) throw policy.error;
+    if (!(await this.deps.signupGate.allows(input.email))) throw new BetaClosedError();
 
     // Hash fora da transação: argon2 é deliberadamente lento.
     const passwordHash = await hasher.hash(input.password);

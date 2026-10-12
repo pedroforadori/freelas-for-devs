@@ -26,6 +26,15 @@ export class SessionSupersededError extends DomainError {
   }
 }
 
+export class BetaClosedError extends DomainError {
+  readonly code = 'FORBIDDEN';
+  constructor() {
+    super(
+      'A plataforma está em beta fechado: só e-mails convidados podem criar conta. Entre na lista de espera para receber seu convite.',
+    );
+  }
+}
+
 export class AccountSuspendedError extends DomainError {
   readonly code = 'FORBIDDEN';
   constructor() {

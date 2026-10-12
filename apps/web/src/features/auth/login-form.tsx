@@ -25,6 +25,8 @@ const OAUTH_ERRORS: Record<string, string> = {
   [OAuthErrorReason.EmailNotVerified]:
     'Seu e-mail não está verificado no provedor. Verifique-o lá ou cadastre-se com e-mail e senha.',
   [OAuthErrorReason.AccountSuspended]: 'Esta conta está suspensa. Fale com o suporte.',
+  [OAuthErrorReason.BetaClosed]:
+    'Estamos em beta fechado: só e-mails convidados criam conta. Entre na lista de espera para receber o seu convite.',
 };
 
 type LoginInput = z.input<typeof loginRequestSchema>;
@@ -71,6 +73,9 @@ export function LoginForm() {
 
   return (
     <div className="flex flex-col gap-6">
+      {params.get('conta') === 'excluida' ? (
+        <Alert tone="success">Sua conta foi excluída. Obrigado por ter passado por aqui.</Alert>
+      ) : null}
       {formError ? <Alert tone="error">{formError}</Alert> : null}
       <OAuthButtons redirectTo={redirectTo} />
       <Divider />

@@ -72,7 +72,7 @@ export interface ViolationRecord {
 }
 
 export interface ViolationView extends Omit<ViolationRecord, 'originalEncrypted'> {
-  user: { displayName: string; email: string; status: 'ACTIVE' | 'SUSPENDED' };
+  user: { displayName: string; email: string; status: 'ACTIVE' | 'SUSPENDED' | 'DELETED' };
   recentViolations: number;
 }
 

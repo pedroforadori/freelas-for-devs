@@ -12,6 +12,7 @@ export * from './modules/leads.js';
 export * from './modules/messaging.js';
 export * from './modules/disputes.js';
 export * from './modules/reputation.js';
+export * from './modules/privacy.js';
 export * from './modules/profiles.js';
 export * from './modules/projects.js';
 export * from './modules/settings.js';

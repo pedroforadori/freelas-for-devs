@@ -230,6 +230,23 @@ export class FreelancerProfile extends AggregateRoot {
     return change;
   }
 
+  /**
+   * Exclusão da conta (LGPD): apaga o que a pessoa escreveu e mostrou (apresentação, links,
+   * stacks, portfólio) e tira a disponibilidade. Nível e histórico ficam (não identificam).
+   */
+  erase(now: Date): void {
+    Object.assign(this.props, {
+      headline: '',
+      bio: '',
+      stacks: [],
+      links: {},
+      portfolio: [],
+      available: false,
+      reviewNote: null,
+      updatedAt: now,
+    });
+  }
+
   toSnapshot(): FreelancerProfileSnapshot {
     return { ...structuredClone(this.props), userId: this.id, version: this.version };
   }

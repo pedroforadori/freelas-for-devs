@@ -36,6 +36,7 @@ describe('DistributionEventHandler', () => {
       ContractFunded: ContractEvents.Funded,
       ContractExpired: ContractEvents.Expired,
       UserSuspended: UserEvents.Suspended,
+      UserDeleted: UserEvents.Deleted,
       ContractAbandoned: ContractEvents.Abandoned,
       ScoreChanged: ReputationEvents.ScoreChanged,
     });

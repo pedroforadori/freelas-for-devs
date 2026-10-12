@@ -64,6 +64,7 @@ beforeEach(async () => {
     uow: ctx,
     clock: new FakeClock(new Date()),
     ids,
+    signupGate: { allows: () => Promise.resolve(true) },
     settings: {
       refreshTokenTtlMs: 30 * DAY_MS,
       emailVerificationTtlMs: 24 * HOUR_MS,

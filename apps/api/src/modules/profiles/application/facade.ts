@@ -8,6 +8,19 @@ export class ProfilesFacade extends ProfilesUseCase {
    * Sobe o freelancer de `fromLevel` para `toLevel` (registro no histórico, sem autor humano).
    * Idempotente: se o nível já mudou desde o cálculo, não faz nada e devolve false.
    */
+  /** Exclusão da conta (LGPD): perfis sem dados pessoais. Participa da transação de quem chama. */
+  async erase(userId: string): Promise<void> {
+    await this.deps.uow.run(async () => {
+      const profile = await this.deps.profiles.find(userId);
+      if (profile) {
+        profile.erase(this.deps.clock.now());
+        await this.deps.profiles.save(profile);
+      }
+      if (await this.deps.clients.find(userId))
+        await this.deps.clients.upsert({ userId, companyName: null });
+    });
+  }
+
   async promote(input: {
     userId: string;
     fromLevel: string;

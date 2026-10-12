@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/admin/niveis', label: 'Níveis' },
   { href: '/admin/disputas', label: 'Disputas' },
   { href: '/admin/moderacao', label: 'Moderação' },
+  { href: '/admin/beta', label: 'Beta' },
   { href: '/admin/configuracoes', label: 'Configurações' },
 ];
 

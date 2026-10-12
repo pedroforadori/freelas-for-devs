@@ -21,7 +21,11 @@ import {
 } from '../../../shared/interface/http/contract-route.js';
 import { ProblemError } from '../../../shared/interface/http/problem.error.js';
 import { SignInWithOAuth } from '../application/oauth-use-cases.js';
-import { AccountSuspendedError, OAuthEmailNotVerifiedError } from '../domain/errors.js';
+import {
+  AccountSuspendedError,
+  BetaClosedError,
+  OAuthEmailNotVerifiedError,
+} from '../domain/errors.js';
 import { OAUTH_PROVIDERS, type OAuthProviderRegistry } from '../infrastructure/oauth-providers.js';
 
 const routes = apiRoutes.auth;
@@ -126,6 +130,7 @@ export class OAuthController {
         return this.fail(reply, OAuthErrorReason.EmailNotVerified);
       if (error instanceof AccountSuspendedError)
         return this.fail(reply, OAuthErrorReason.AccountSuspended);
+      if (error instanceof BetaClosedError) return this.fail(reply, OAuthErrorReason.BetaClosed);
       throw error;
     }
 

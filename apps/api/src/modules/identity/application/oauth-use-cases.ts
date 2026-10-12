@@ -1,6 +1,10 @@
 import { Role, type SelfAssignableRole } from '@f4d/contracts';
 import type { RequestMeta } from '../../../shared/application/audit-log.js';
-import { AccountSuspendedError, OAuthEmailNotVerifiedError } from '../domain/errors.js';
+import {
+  AccountSuspendedError,
+  BetaClosedError,
+  OAuthEmailNotVerifiedError,
+} from '../domain/errors.js';
 import { User } from '../domain/user.js';
 import type { OAuthProfile } from './ports.js';
 import { IdentityUseCase, type LoginOutcome } from './use-cases.js';
@@ -32,6 +36,8 @@ export class SignInWithOAuth extends IdentityUseCase {
       if (linkedUserId) return users.findById(linkedUserId);
 
       const existing = await users.findByEmail(profile.email);
+      if (!existing && !(await this.deps.signupGate.allows(profile.email)))
+        throw new BetaClosedError();
       const account =
         existing ??
         User.registerViaProvider({

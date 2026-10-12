@@ -170,6 +170,30 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'dias' },
     usedFrom: 'F8',
   }),
+  'access.signupMode': define({
+    schema: z.enum(['OPEN', 'INVITE_ONLY']),
+    default: 'OPEN',
+    label: 'Cadastro de novas contas',
+    description:
+      'No beta fechado, só e-mails convidados (Admin → Beta) criam conta, por senha ou login social.',
+    input: {
+      kind: 'enum',
+      options: [
+        { value: 'OPEN', label: 'Aberto' },
+        { value: 'INVITE_ONLY', label: 'Só convidados (beta fechado)' },
+      ],
+    },
+    usedFrom: 'F11',
+  }),
+  'privacy.violationOriginalRetentionDays': define({
+    schema: z.number().int().min(30).max(730),
+    default: 180,
+    label: 'Retenção do texto original na moderação',
+    description:
+      'Depois desse prazo, o texto original (cifrado) das tentativas de passar contato é apagado; fica só a versão mascarada.',
+    input: { kind: 'integer', unit: 'dias' },
+    usedFrom: 'F11',
+  }),
   'queue.performanceBonusHours': define({
     schema: z.number().int().min(0).max(336),
     default: 72,
