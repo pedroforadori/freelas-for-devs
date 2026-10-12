@@ -29,8 +29,17 @@ export const SCOPING_CHAT_STATUSES: readonly ProjectStatus[] = [
   'DISTRIBUTING',
 ];
 
-/** O chat do contrato abre com o pagamento em custódia (antes disso, nada de negociar por fora). */
-export const CONTRACT_CHAT_STATUSES: readonly ContractStatus[] = ['ACTIVE', 'APPROVED', 'RELEASED'];
+/**
+ * O chat do contrato abre com o pagamento em custódia (antes disso, nada de negociar por fora) e
+ * continua na disputa — é parte do que a mediação analisa.
+ */
+export const CONTRACT_CHAT_STATUSES: readonly ContractStatus[] = [
+  'ACTIVE',
+  'DISPUTED',
+  'APPROVED',
+  'RELEASED',
+  'SETTLED',
+];
 
 export const messageSchema = z
   .object({

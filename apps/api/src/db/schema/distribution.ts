@@ -43,6 +43,8 @@ export const queueEntries = pgTable(
     declines: integer().notNull().default(0),
     noResponses: integer().notNull().default(0),
     selections: integer().notNull().default(0),
+    /** Contratos abandonados (penalidade na fila; entra na reputação da F9). */
+    abandonments: integer().notNull().default(0),
     monitoringSince: timestamp({ withTimezone: true }),
     version: integer().notNull().default(0),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),

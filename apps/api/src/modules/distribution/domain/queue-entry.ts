@@ -14,6 +14,7 @@ export interface QueueEntrySnapshot {
   declines: number;
   noResponses: number;
   selections: number;
+  abandonments: number;
   monitoringSince: Date | null;
   updatedAt: Date;
   version: number;
@@ -57,6 +58,7 @@ export class QueueEntry extends AggregateRoot {
         declines: 0,
         noResponses: 0,
         selections: 0,
+        abandonments: 0,
         monitoringSince: null,
         updatedAt: now,
       },
@@ -133,6 +135,18 @@ export class QueueEntry extends AggregateRoot {
     } else {
       this.givePriority(now);
     }
+    this.props.updatedAt = now;
+  }
+
+  /**
+   * Abandonou um contrato: perde qualquer prioridade e só volta a ser convidado depois da
+   * penalidade (a chave de justiça usa `lastInvitedAt`; uma data futura o mantém no fim).
+   */
+  abandoned(penaltyDays: number, now: Date): void {
+    this.props.tier = 'NORMAL';
+    this.props.prioritySince = null;
+    this.props.lastInvitedAt = new Date(now.getTime() + penaltyDays * 24 * 60 * 60 * 1000);
+    this.props.abandonments += 1;
     this.props.updatedAt = now;
   }
 

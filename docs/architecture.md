@@ -283,6 +283,8 @@ Regras: os timers ficam **pausados** enquanto houver um fora de escopo pendente 
 
 ### 4.4 Fora de escopo
 
+_Implementado na F8 (ADR-0019): `FLAGGED` e `EXTRA_PROPOSED` são um passo só; prazos pausados por travas no contrato._
+
 ```mermaid
 stateDiagram-v2
   [*] --> FLAGGED: freelancer marca pedido do cliente
@@ -301,6 +303,8 @@ stateDiagram-v2
 ```
 
 ### 4.5 Disputa
+
+_Implementado na F8 (ADR-0019): `OPENED`/`COLLECTING_EVIDENCE` viraram `OPEN`; falhas da execução são repetidas sem estado à parte; abandono é uma disputa do tipo `ABANDONMENT`._
 
 ```mermaid
 stateDiagram-v2

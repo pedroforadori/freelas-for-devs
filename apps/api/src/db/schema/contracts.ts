@@ -1,4 +1,12 @@
-import type { CommissionPayer, ContractStatus, DeliveryStage, PaymentStatus } from '@f4d/contracts';
+import type {
+  CommissionPayer,
+  ContractStatus,
+  DeliveryStage,
+  DisputeReason,
+  DisputeStatus,
+  OutOfScopeStatus,
+  PaymentStatus,
+} from '@f4d/contracts';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -59,6 +67,9 @@ export const contracts = pgTable(
     releasedAt: timestamp({ withTimezone: true }),
     /** Transferência ao freelancer no provedor (repasse). */
     transferRef: text(),
+    /** Travas que pausam os prazos (fora de escopo pendente, disputa) e desde quando. */
+    holds: jsonb().$type<string[]>().notNull().default([]),
+    pausedAt: timestamp({ withTimezone: true }),
     version: integer().notNull().default(0),
     createdAt: timestamp({ withTimezone: true }).notNull(),
     updatedAt: timestamp({ withTimezone: true }).notNull(),
@@ -133,6 +144,10 @@ export const payments = pgTable(
     checkoutExpiresAt: timestamp({ withTimezone: true }).notNull(),
     status: text().$type<PaymentStatus>().notNull(),
     amountCents: integer().notNull(),
+    /** Devolvido ao cliente (parcial numa disputa). */
+    refundedCents: integer().notNull().default(0),
+    /** Pagamento de um adicional fora de escopo (nulo = valor do contrato). */
+    outOfScopeId: uuid().references(() => outOfScopeRequests.id),
     succeededAt: timestamp({ withTimezone: true }),
     refundedAt: timestamp({ withTimezone: true }),
     version: integer().notNull().default(0),
@@ -201,5 +216,95 @@ export const payoutAccounts = pgTable(
   },
   (table) => [
     uniqueIndex('payout_accounts_provider_key').on(table.provider, table.providerAccountId),
+  ],
+);
+
+/** Pedido fora do escopo aprovado (docs/architecture.md §4.4), com o adicional já com comissão. */
+export const outOfScopeRequests = pgTable(
+  'out_of_scope_requests',
+  {
+    id: uuid().primaryKey(),
+    contractId: uuid()
+      .notNull()
+      .references(() => contracts.id),
+    status: text().$type<OutOfScopeStatus>().notNull(),
+    description: text().notNull(),
+    proposalCents: integer().notNull(),
+    platformFeeCents: integer().notNull(),
+    clientTotalCents: integer().notNull(),
+    freelancerNetCents: integer().notNull(),
+    extraDays: integer().notNull(),
+    contestReason: text(),
+    ruling: jsonb().$type<{
+      decision: 'IN_SCOPE' | 'OUT_OF_SCOPE';
+      note: string;
+      adminId: string;
+      decidedAt: string;
+    }>(),
+    paymentDeadlineAt: timestamp({ withTimezone: true }),
+    version: integer().notNull().default(0),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('out_of_scope_contract_idx').on(table.contractId, table.createdAt),
+    // Reconciliador: adicionais aceitos e não pagos no prazo.
+    index('out_of_scope_payment_deadline_idx').on(table.status, table.paymentDeadlineAt),
+  ],
+);
+
+/** Disputa do contrato (docs/architecture.md §4.5); abandono é uma disputa do tipo ABANDONMENT. */
+export const disputes = pgTable(
+  'disputes',
+  {
+    id: uuid().primaryKey(),
+    contractId: uuid()
+      .notNull()
+      .references(() => contracts.id),
+    kind: text().$type<'DISPUTE' | 'ABANDONMENT'>().notNull(),
+    status: text().$type<DisputeStatus>().notNull(),
+    openedBy: text().$type<'CLIENT' | 'FREELANCER' | 'ADMIN'>().notNull(),
+    openerId: uuid()
+      .notNull()
+      .references(() => users.id),
+    reason: text().$type<DisputeReason>().notNull(),
+    description: text().notNull(),
+    evidenceDeadlineAt: timestamp({ withTimezone: true }).notNull(),
+    statements: jsonb()
+      .$type<
+        {
+          role: 'CLIENT' | 'FREELANCER';
+          userId: string;
+          text: string;
+          attachmentIds: string[];
+          createdAt: string;
+        }[]
+      >()
+      .notNull()
+      .default([]),
+    resolution: jsonb().$type<{
+      freelancerShareBps: number;
+      note: string;
+      adminId: string;
+      freelancerCents: number;
+      platformFeeCents: number;
+      refundCents: number;
+      decidedAt: string;
+    }>(),
+    execution: jsonb()
+      .$type<{ refundedAt: string | null; transferRef: string | null; waitingFor: string | null }>()
+      .notNull(),
+    closedAt: timestamp({ withTimezone: true }),
+    version: integer().notNull().default(0),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('disputes_contract_idx').on(table.contractId, table.createdAt),
+    // Uma disputa ativa por contrato (aberturas concorrentes não duplicam).
+    uniqueIndex('disputes_active_contract_key')
+      .on(table.contractId)
+      .where(sql`${table.status} in ('OPEN', 'UNDER_REVIEW', 'EXECUTING')`),
+    index('disputes_status_idx').on(table.status, table.evidenceDeadlineAt),
   ],
 );

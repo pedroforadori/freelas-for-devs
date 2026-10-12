@@ -7,6 +7,8 @@ import type {
   CreateContractForSelection,
   ReleasePayment,
 } from '../application/use-cases.js';
+import type { ExecuteSettlement } from '../application/disputes.js';
+import { DisputeEvents } from '../domain/dispute.js';
 import { ContractEvents } from '../domain/contract.js';
 import { ContractsEventHandler, ContractsEventTypes } from './contracts.worker.js';
 
@@ -25,16 +27,19 @@ describe('ContractsEventHandler', () => {
       ProposalSelected: RoundEvents.ProposalSelected,
       ProjectCancelled: ProjectEvents.Cancelled,
       ContractApproved: ContractEvents.Approved,
+      DisputeResolved: DisputeEvents.Resolved,
     });
   });
 
   it('creates the contract from the selection payload', async () => {
     const create = { execute: vi.fn() };
     const cancel = { execute: vi.fn() };
+    const settle = { execute: vi.fn() };
     const handler = new ContractsEventHandler(
       create as unknown as CreateContractForSelection,
       cancel as unknown as CancelContractForProject,
       { execute: vi.fn() } as unknown as ReleasePayment,
+      settle as unknown as ExecuteSettlement,
     );
     await handler.handle(
       event(RoundEvents.ProposalSelected, {
@@ -57,5 +62,7 @@ describe('ContractsEventHandler', () => {
       deadlineDays: 25,
     });
     expect(cancel.execute).toHaveBeenCalledWith('p1');
+    await handler.handle(event(DisputeEvents.Resolved, { disputeId: 'd1', contractId: 'k1' }));
+    expect(settle.execute).toHaveBeenCalledWith('d1');
   });
 });

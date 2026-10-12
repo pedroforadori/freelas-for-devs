@@ -63,6 +63,8 @@ const toContract = (row: ContractRow, deliveryRows: DeliveryRecord[]): Contract 
     approvalKind: row.approvalKind,
     releasedAt: row.releasedAt,
     transferRef: row.transferRef,
+    holds: row.holds,
+    pausedAt: row.pausedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     version: row.version,
@@ -127,6 +129,8 @@ export class DrizzleContractRepository implements ContractRepository {
       .where(
         and(
           eq(contracts.status, 'ACTIVE'),
+          // Prazos pausados (fora de escopo pendente) não vencem.
+          isNull(contracts.pausedAt),
           isNull(deliveries.reviewedAt),
           lte(deliveries.reviewDeadlineAt, now),
         ),
@@ -185,6 +189,13 @@ export class DrizzleContractRepository implements ContractRepository {
         approvalKind: s.approvalKind,
         releasedAt: s.releasedAt,
         transferRef: s.transferRef,
+        holds: s.holds,
+        pausedAt: s.pausedAt,
+        // Adicionais fora de escopo pagos somam aos valores do contrato.
+        proposalCents: s.amounts.proposalCents,
+        platformFeeCents: s.amounts.platformFeeCents,
+        clientTotalCents: s.amounts.clientTotalCents,
+        freelancerNetCents: s.amounts.freelancerNetCents,
         updatedAt: s.updatedAt,
       };
       if (s.version === 0) {
@@ -195,13 +206,9 @@ export class DrizzleContractRepository implements ContractRepository {
           invitationId: s.invitationId,
           clientId: s.clientId,
           freelancerId: s.freelancerId,
-          proposalCents: s.amounts.proposalCents,
           deadlineDays: s.deadlineDays,
           commissionBps: s.amounts.commissionBps,
           commissionPayer: s.amounts.commissionPayer,
-          platformFeeCents: s.amounts.platformFeeCents,
-          clientTotalCents: s.amounts.clientTotalCents,
-          freelancerNetCents: s.amounts.freelancerNetCents,
           paymentDeadlineAt: s.paymentDeadlineAt,
           createdAt: s.createdAt,
           version: 1,
@@ -217,6 +224,8 @@ export class DrizzleContractRepository implements ContractRepository {
       // Entregas: inserção ou atualização da revisão (chave: contrato + número + envio).
       for (const delivery of s.deliveries) {
         const values = {
+          // Estendido quando os prazos voltam a correr depois de uma pausa.
+          reviewDeadlineAt: delivery.reviewDeadlineAt,
           reviewedAt: delivery.reviewedAt,
           outcome: delivery.outcome,
           adjustments: delivery.adjustments,
@@ -281,6 +290,7 @@ export class DrizzlePaymentRepository implements PaymentRepository {
         providerPaymentRef: s.providerPaymentRef,
         succeededAt: s.succeededAt,
         refundedAt: s.refundedAt,
+        refundedCents: s.refundedCents,
         updatedAt: s.updatedAt,
         version: version + 1,
       })

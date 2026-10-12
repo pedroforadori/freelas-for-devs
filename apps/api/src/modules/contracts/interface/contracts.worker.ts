@@ -9,6 +9,12 @@ import { QueueName } from '../../../shared/infra/queue/queue-names.js';
 import { ReportingWorkerHost } from '../../../shared/infra/queue/reporting-worker-host.js';
 import type { DomainEvent } from '../../../shared/kernel/domain-event.js';
 import {
+  AdvanceDisputes,
+  ExecuteSettlement,
+  ExpireUnpaidExtras,
+  RetryPendingSettlements,
+} from '../application/disputes.js';
+import {
   CancelContractForProject,
   CreateContractForSelection,
   ExpireUnpaidContracts,
@@ -22,9 +28,13 @@ export const ContractsEventTypes = {
   ProposalSelected: 'distribution.ProposalSelected',
   ProjectCancelled: 'projects.ProjectCancelled',
   ContractApproved: 'contracts.ContractApproved',
+  DisputeResolved: 'contracts.DisputeResolved',
 } as const;
 
-/** Escolha da proposta → contrato; projeto cancelado → contrato encerrado (idempotentes). */
+/**
+ * Escolha da proposta → contrato; projeto cancelado → contrato encerrado; aprovação → repasse;
+ * disputa decidida → reembolso e repasse (todos idempotentes).
+ */
 @Injectable()
 @HandlesDomainEvents(...Object.values(ContractsEventTypes))
 export class ContractsEventHandler implements DomainEventHandler {
@@ -32,6 +42,7 @@ export class ContractsEventHandler implements DomainEventHandler {
     @Inject(CreateContractForSelection) private readonly create: CreateContractForSelection,
     @Inject(CancelContractForProject) private readonly cancel: CancelContractForProject,
     @Inject(ReleasePayment) private readonly release: ReleasePayment,
+    @Inject(ExecuteSettlement) private readonly settle: ExecuteSettlement,
   ) {}
 
   async handle(event: DomainEvent): Promise<void> {
@@ -49,6 +60,8 @@ export class ContractsEventHandler implements DomainEventHandler {
       await this.cancel.execute(String(p.projectId));
     } else if (event.type === ContractsEventTypes.ContractApproved) {
       await this.release.execute(String(p.contractId));
+    } else if (event.type === ContractsEventTypes.DisputeResolved) {
+      await this.settle.execute(String(p.disputeId));
     }
   }
 }
@@ -58,6 +71,9 @@ const SCHEDULES = [
   { name: 'review-deadlines', every: 60_000 },
   { name: 'reconcile-payments', every: 5 * 60_000 },
   { name: 'retry-releases', every: 15 * 60_000 },
+  { name: 'expire-unpaid-extras', every: 60_000 },
+  { name: 'advance-disputes', every: 60_000 },
+  { name: 'retry-settlements', every: 15 * 60_000 },
 ] as const;
 
 /** Prazos de pagamento e reconciliação com o provedor (job schedulers do BullMQ). */
@@ -73,6 +89,9 @@ export class ContractsSchedulesProcessor
     @Inject(ReconcilePendingPayments) private readonly reconcile: ReconcilePendingPayments,
     @Inject(ProcessReviewDeadlines) private readonly reviews: ProcessReviewDeadlines,
     @Inject(RetryPendingReleases) private readonly releases: RetryPendingReleases,
+    @Inject(ExpireUnpaidExtras) private readonly extras: ExpireUnpaidExtras,
+    @Inject(AdvanceDisputes) private readonly disputes: AdvanceDisputes,
+    @Inject(RetryPendingSettlements) private readonly settlements: RetryPendingSettlements,
     @InjectQueue(QueueName.Contracts) private readonly queue: Queue,
   ) {
     super();
@@ -104,6 +123,21 @@ export class ContractsSchedulesProcessor
       const released = await this.releases.execute();
       if (released > 0) this.logger.log({ released }, 'Repasses pendentes liberados');
       return released;
+    }
+    if (job.name === 'expire-unpaid-extras') {
+      const expired = await this.extras.execute();
+      if (expired > 0) this.logger.log({ expired }, 'Adicionais fora de escopo não pagos');
+      return expired;
+    }
+    if (job.name === 'advance-disputes') {
+      const advanced = await this.disputes.execute();
+      if (advanced > 0) this.logger.log({ advanced }, 'Disputas enviadas para análise');
+      return advanced;
+    }
+    if (job.name === 'retry-settlements') {
+      const closed = await this.settlements.execute();
+      if (closed > 0) this.logger.log({ closed }, 'Decisões de disputa executadas');
+      return closed;
     }
     const result = await this.reconcile.execute();
     if (result.confirmed + result.closed > 0) this.logger.warn(result, 'Pagamentos reconciliados');

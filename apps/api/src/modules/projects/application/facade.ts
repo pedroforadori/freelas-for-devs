@@ -62,6 +62,10 @@ export class ProjectsFacade {
     return this.change(projectId, (project, now) => project.complete(now));
   }
 
+  closeByDispute(projectId: string): Promise<void> {
+    return this.change(projectId, (project, now) => project.closeByDispute(now));
+  }
+
   private change(projectId: string, apply: (project: Project, now: Date) => void): Promise<void> {
     return this.deps.uow.run(async () => {
       const project = await this.deps.projects.find(projectId);

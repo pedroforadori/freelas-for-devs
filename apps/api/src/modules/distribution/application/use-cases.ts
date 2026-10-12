@@ -324,6 +324,21 @@ export class RemoveSuspendedFreelancer extends DistributionUseCase {
   }
 }
 
+/** Contrato abandonado (pelo freelancer ou declarado pela mediação): penalidade na fila. */
+export class PenalizeAbandonment extends DistributionUseCase {
+  execute(freelancerId: string): Promise<void> {
+    return this.deps.uow.run(async () => {
+      const entry = await this.deps.queue.find(freelancerId);
+      if (!entry) return;
+      entry.abandoned(
+        await this.deps.settings.get('queue.abandonPenaltyDays'),
+        this.deps.clock.now(),
+      );
+      await this.deps.queue.save(entry);
+    });
+  }
+}
+
 export class SelectProposal extends DistributionUseCase {
   async execute(clientId: string, projectId: string, input: SelectProposalRequest) {
     const notices: Notice[] = [];

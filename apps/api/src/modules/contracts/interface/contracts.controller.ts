@@ -5,6 +5,7 @@ import {
   type AdminContract,
   apiRoutes,
   type Contract as ContractDto,
+  type Dispute as DisputeDto,
   type ContractSummary,
   type PayoutAccount,
 } from '@f4d/contracts';
@@ -33,28 +34,73 @@ import {
   StartCheckout,
   SubmitDelivery,
 } from '../application/use-cases.js';
+import { ReadDisputes } from '../application/disputes.js';
 import type { Contract } from '../domain/contract.js';
+import type { Dispute } from '../domain/dispute.js';
 
 const routes = apiRoutes.contracts;
 
+type FileRef = { id: string; fileName: string; size: number; status: string };
+
+const presentDispute = (dispute: Dispute, files: Map<string, FileRef>): DisputeDto => {
+  const d = dispute.toSnapshot();
+  return {
+    id: d.id,
+    kind: d.kind,
+    status: d.status,
+    openedBy: d.openedBy,
+    reason: d.reason,
+    description: d.description,
+    evidenceDeadlineAt: d.evidenceDeadlineAt.toISOString(),
+    statements: d.statements.map((statement) => ({
+      role: statement.role,
+      text: statement.text,
+      attachments: statement.attachmentIds.flatMap((id) => files.get(id) ?? []),
+      createdAt: statement.createdAt.toISOString(),
+    })),
+    resolution: d.resolution
+      ? {
+          freelancerShareBps: d.resolution.freelancerShareBps,
+          note: d.resolution.note,
+          freelancerCents: d.resolution.freelancerCents,
+          platformFeeCents: d.resolution.platformFeeCents,
+          refundCents: d.resolution.refundCents,
+          decidedAt: d.resolution.decidedAt.toISOString(),
+        }
+      : null,
+    closedAt: d.closedAt?.toISOString() ?? null,
+    createdAt: d.createdAt.toISOString(),
+  };
+};
+
 /** Monta o contrato com nomes e projeto (módulos de identidade e projetos são as fontes). */
-class ContractPresenter {
+export class ContractPresenter {
   constructor(
     private readonly deps: ContractsDeps,
     private readonly read: ReadContracts,
+    private readonly disputes: ReadDisputes,
   ) {}
 
   async present(contract: Contract): Promise<ContractDto> {
     const s = contract.toSnapshot();
+    const [[outOfScope, dispute], payments] = await Promise.all([
+      this.disputes.issues(s.id),
+      this.deps.payments.listByContract(s.id),
+    ]);
+    const statements = dispute?.toSnapshot().statements ?? [];
     const [project, client, freelancer, inProgress, rating, files] = await Promise.all([
       this.deps.projects.find(s.projectId),
       this.deps.people.find(s.clientId),
       this.deps.people.find(s.freelancerId),
       this.read.hasOpenCheckout(contract),
       this.read.rating(s.id),
-      this.deps.files.describe(s.deliveries.flatMap((delivery) => delivery.attachmentIds)),
+      this.deps.files.describe([
+        ...s.deliveries.flatMap((delivery) => delivery.attachmentIds),
+        ...statements.flatMap((statement) => statement.attachmentIds),
+      ]),
     ]);
     const fileById = new Map(files.map((file) => [file.id, file]));
+    const now = this.deps.clock.now();
     const current = contract.currentDelivery;
     return {
       id: s.id,
@@ -102,6 +148,34 @@ class ContractPresenter {
               : null,
           }
         : null,
+      paused: s.pausedAt !== null,
+      outOfScope: outOfScope.map((request) => {
+        const r = request.toSnapshot();
+        return {
+          id: r.id,
+          status: r.status,
+          description: r.description,
+          amountCents: r.amounts.proposalCents,
+          clientTotalCents: r.amounts.clientTotalCents,
+          freelancerNetCents: r.amounts.freelancerNetCents,
+          extraDays: r.extraDays,
+          contestReason: r.contestReason,
+          ruling: r.ruling
+            ? {
+                decision: r.ruling.decision,
+                note: r.ruling.note,
+                decidedAt: r.ruling.decidedAt.toISOString(),
+              }
+            : null,
+          paymentDeadlineAt: r.paymentDeadlineAt?.toISOString() ?? null,
+          paymentInProgress: payments.some(
+            (payment) => payment.outOfScopeId === r.id && payment.isReusable(now),
+          ),
+          createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+        };
+      }),
+      dispute: dispute ? presentDispute(dispute, fileById) : null,
       createdAt: s.createdAt.toISOString(),
     };
   }
@@ -138,8 +212,9 @@ export class ContractsController {
     private readonly deliveries: SubmitDelivery,
     private readonly reviews: ReviewDelivery,
     private readonly ratings: RateFreelancer,
+    private readonly disputes: ReadDisputes,
   ) {
-    this.presenter = new ContractPresenter(deps, read);
+    this.presenter = new ContractPresenter(deps, read, disputes);
   }
 
   @ContractRoute(routes.listMyContracts)
@@ -292,8 +367,9 @@ export class AdminContractsController {
   constructor(
     @Inject(CONTRACTS_DEPS) deps: ContractsDeps,
     private readonly read: ReadContracts,
+    disputes: ReadDisputes,
   ) {
-    this.presenter = new ContractPresenter(deps, read);
+    this.presenter = new ContractPresenter(deps, read, disputes);
   }
 
   @ContractRoute(routes.adminGetProjectContract)
@@ -311,6 +387,8 @@ export class AdminContractsController {
           id: p.id,
           status: p.status,
           amountCents: p.amountCents,
+          refundedCents: p.refundedCents,
+          outOfScopeId: p.outOfScopeId,
           provider: p.provider,
           providerCheckoutId: p.providerCheckoutId,
           createdAt: p.createdAt.toISOString(),

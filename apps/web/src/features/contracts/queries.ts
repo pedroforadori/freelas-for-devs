@@ -2,7 +2,7 @@
 
 import { ApiError, unwrap } from '@f4d/api-client';
 import type { Contract } from '@f4d/contracts';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export const projectContractKey = (projectId: string) =>
@@ -32,3 +32,14 @@ export const useProjectContract = (projectId: string, options: { confirming?: bo
       return false;
     },
   });
+
+export const contractKey = (contractId: string) => ['contracts', contractId] as const;
+
+/** Atualiza o contrato em cache com a resposta de uma ação (e a lista "meus contratos"). */
+export const useSetContract = (contractId: string) => {
+  const queryClient = useQueryClient();
+  return (contract: Contract) => {
+    queryClient.setQueryData(contractKey(contractId), contract);
+    void queryClient.invalidateQueries({ queryKey: ['contracts', 'mine'] });
+  };
+};

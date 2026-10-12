@@ -26,17 +26,28 @@ export function AmountsTable({
   viewer: 'client' | 'freelancer';
 }) {
   const { amounts } = contract;
+  const extras = contract.outOfScope.some((request) => request.status === 'ACCEPTED_FUNDED');
+  const settled = contract.status === 'SETTLED';
   const rows =
     viewer === 'client'
       ? [
-          ['Proposta escolhida', brl(amounts.proposalCents)],
+          [
+            extras ? 'Proposta + adicionais pagos' : 'Proposta escolhida',
+            brl(amounts.proposalCents),
+          ],
           ...(amounts.clientTotalCents > amounts.proposalCents
             ? [['Taxa da plataforma', brl(amounts.clientTotalCents - amounts.proposalCents)]]
             : []),
-          ['Total em custódia', brl(amounts.clientTotalCents)],
+          [
+            settled ? 'Total pago (dividido pela mediação)' : 'Total em custódia',
+            brl(amounts.clientTotalCents),
+          ],
         ]
       : [
-          ['Valor da proposta', brl(amounts.proposalCents)],
+          [
+            extras ? 'Proposta + adicionais pagos' : 'Valor da proposta',
+            brl(amounts.proposalCents),
+          ],
           ...(amounts.freelancerNetCents < amounts.proposalCents
             ? [
                 [
@@ -45,7 +56,10 @@ export function AmountsTable({
                 ],
               ]
             : []),
-          ['Você recebe', brl(amounts.freelancerNetCents)],
+          [
+            settled ? 'Valor original (dividido pela mediação)' : 'Você recebe',
+            brl(amounts.freelancerNetCents),
+          ],
         ];
   return (
     <dl className="grid gap-2 text-body">
@@ -154,23 +168,37 @@ export function InProgressCard({
   const contract = query.data;
   if (!contract) return null;
   const done = project.status === 'COMPLETED';
+  const mediated = project.status === 'CLOSED_BY_DISPUTE';
+  const disputed = contract.status === 'DISPUTED';
   return (
     <Card tone="accent" className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium tracking-wide uppercase">
-          {done ? 'Projeto concluído' : 'Pagamento em custódia'}
+          {done
+            ? 'Projeto concluído'
+            : mediated
+              ? 'Encerrado pela mediação'
+              : 'Pagamento em custódia'}
         </p>
         <h2 className="text-h4 font-medium">
           {done
             ? 'Entrega final aprovada'
-            : viewer === 'client'
-              ? `${contract.freelancer.displayName} está trabalhando no seu projeto`
-              : 'Projeto em andamento'}
+            : mediated
+              ? 'A disputa foi decidida'
+              : disputed
+                ? 'Disputa em andamento'
+                : viewer === 'client'
+                  ? `${contract.freelancer.displayName} está trabalhando no seu projeto`
+                  : 'Projeto em andamento'}
         </h2>
         <p className="text-body">
           {done
             ? 'Veja as entregas e avalie o trabalho na área do contrato.'
-            : `Prazo combinado: ${contract.deadlineDays} dias. Acompanhe as entregas, revise e peça ajustes na área do contrato.`}
+            : mediated
+              ? 'Veja a decisão e os valores na área do contrato.'
+              : disputed
+                ? 'Os prazos estão pausados e o valor segue protegido. Acompanhe e envie sua versão na área do contrato.'
+                : `Prazo combinado: ${contract.deadlineDays} dias. Acompanhe as entregas, revise e peça ajustes na área do contrato.`}
         </p>
       </div>
       <Link href={`/contratos/${contract.id}`} className={buttonClasses('primary', 'self-start')}>

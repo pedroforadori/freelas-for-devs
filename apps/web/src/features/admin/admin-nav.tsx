@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/admin/projetos', label: 'Projetos' },
   { href: '/admin/fila', label: 'Fila' },
   { href: '/admin/freelancers', label: 'Freelancers' },
+  { href: '/admin/disputas', label: 'Disputas' },
   { href: '/admin/moderacao', label: 'Moderação' },
   { href: '/admin/configuracoes', label: 'Configurações' },
 ];

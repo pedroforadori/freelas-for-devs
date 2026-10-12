@@ -80,6 +80,7 @@ type ProjectEvent =
   | 'startWork'
   | 'revertHiring'
   | 'complete'
+  | 'closeByDispute'
   | 'cancel';
 
 /**
@@ -94,7 +95,7 @@ export const projectMachine = defineStateMachine<
 >({
   name: 'Project',
   initial: 'ESTIMATING',
-  terminal: ['COMPLETED', 'REJECTED', 'CANCELLED'],
+  terminal: ['COMPLETED', 'CLOSED_BY_DISPUTE', 'REJECTED', 'CANCELLED'],
   transitions: {
     ESTIMATING: {
       requestClarification: {
@@ -125,9 +126,10 @@ export const projectMachine = defineStateMachine<
     NO_CANDIDATES: { reopenScope: 'SCOPING', cancel: 'CANCELLED' },
     // Pagamento confirmado → em andamento; prazo de pagamento vencido → volta às propostas.
     HIRING: { startWork: 'IN_PROGRESS', revertHiring: 'DISTRIBUTING', cancel: 'CANCELLED' },
-    // Aprovação da entrega final (cliente ou automática); disputas chegam na F8.
-    IN_PROGRESS: { complete: 'COMPLETED' },
+    // Aprovação da entrega final (cliente ou automática) ou decisão de disputa executada (F8).
+    IN_PROGRESS: { complete: 'COMPLETED', closeByDispute: 'CLOSED_BY_DISPUTE' },
     COMPLETED: {},
+    CLOSED_BY_DISPUTE: {},
     REJECTED: {},
     CANCELLED: {},
   },
@@ -148,6 +150,7 @@ export const ProjectEvents = {
   WorkStarted: 'projects.WorkStarted',
   HiringReverted: 'projects.HiringReverted',
   Completed: 'projects.ProjectCompleted',
+  ClosedByDispute: 'projects.ProjectClosedByDispute',
   Rejected: 'projects.ProjectRejected',
   Cancelled: 'projects.ProjectCancelled',
 } as const;
@@ -458,6 +461,12 @@ export class Project extends AggregateRoot {
     this.transition('complete');
     this.props.updatedAt = now;
     this.record(ProjectEvents.Completed, now, { projectId: this.id });
+  }
+
+  closeByDispute(now: Date): void {
+    this.transition('closeByDispute');
+    this.props.updatedAt = now;
+    this.record(ProjectEvents.ClosedByDispute, now, { projectId: this.id });
   }
 
   /** Versões novas desde a última gravação; o repositório as insere no histórico. */

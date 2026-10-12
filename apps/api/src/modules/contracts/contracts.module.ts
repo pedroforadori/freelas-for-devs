@@ -15,6 +15,15 @@ import { FilesFacade } from '../files/application/use-cases.js';
 import { FilesModule, FilesWorkerModule } from '../files/files.module.js';
 import { ProjectsFacade } from '../projects/application/facade.js';
 import { ProjectsModule, ProjectsWorkerModule } from '../projects/projects.module.js';
+import {
+  AdvanceDisputes,
+  ExecuteSettlement,
+  ExpireUnpaidExtras,
+  ManageDispute,
+  ManageOutOfScope,
+  ReadDisputes,
+  RetryPendingSettlements,
+} from './application/disputes.js';
 import { ContractsFacade } from './application/facade.js';
 import { CONTRACTS_DEPS, type ContractsDeps, type PaymentGateway } from './application/ports.js';
 import {
@@ -43,6 +52,11 @@ import {
   DrizzleRatings,
   DrizzleWebhookInbox,
 } from './infrastructure/drizzle-contracts.js';
+import {
+  DrizzleDisputeQueries,
+  DrizzleDisputeRepository,
+  DrizzleOutOfScopeRepository,
+} from './infrastructure/drizzle-disputes.js';
 import { FakePaymentGateway } from './infrastructure/fake-gateway.js';
 import { StripePaymentGateway } from './infrastructure/stripe-gateway.js';
 import {
@@ -51,6 +65,7 @@ import {
   DevPaymentsController,
   PaymentWebhookController,
 } from './interface/contracts.controller.js';
+import { AdminDisputesController, DisputesController } from './interface/disputes.controller.js';
 import {
   ContractsEventHandler,
   ContractsSchedulesProcessor,
@@ -82,6 +97,12 @@ const SIMPLE_USE_CASES = [
   ReleasePayment,
   RateFreelancer,
   ContractsFacade,
+  ManageOutOfScope,
+  ExpireUnpaidExtras,
+  ManageDispute,
+  AdvanceDisputes,
+  ExecuteSettlement,
+  ReadDisputes,
 ] as const;
 
 const sharedProviders = [
@@ -118,12 +139,16 @@ const sharedProviders = [
       inbox: new DrizzleWebhookInbox(ctx),
       payoutAccounts: new DrizzlePayoutAccounts(ctx),
       ratings: new DrizzleRatings(ctx),
+      outOfScope: new DrizzleOutOfScopeRepository(ctx, ids),
+      disputes: new DrizzleDisputeRepository(ctx, ids),
+      disputeQueries: new DrizzleDisputeQueries(ctx),
       files,
       gateway,
       projects: {
         find: (projectId) => projects.find(projectId),
         startWork: (projectId) => projects.startWork(projectId),
         complete: (projectId) => projects.complete(projectId),
+        closeByDispute: (projectId) => projects.closeByDispute(projectId),
       },
       people: new DrizzleContractPeople(ctx),
       settings,
@@ -147,10 +172,20 @@ const sharedProviders = [
       new ReconcilePendingPayments(deps, confirm),
   },
   {
+    provide: RetryPendingSettlements,
+    inject: [CONTRACTS_DEPS, ExecuteSettlement],
+    useFactory: (deps: ContractsDeps, settle: ExecuteSettlement) =>
+      new RetryPendingSettlements(deps, settle),
+  },
+  {
     provide: HandlePaymentEvent,
-    inject: [CONTRACTS_DEPS, ConfirmPayment, ReleasePayment],
-    useFactory: (deps: ContractsDeps, confirm: ConfirmPayment, release: ReleasePayment) =>
-      new HandlePaymentEvent(deps, confirm, release),
+    inject: [CONTRACTS_DEPS, ConfirmPayment, ReleasePayment, RetryPendingSettlements],
+    useFactory: (
+      deps: ContractsDeps,
+      confirm: ConfirmPayment,
+      release: ReleasePayment,
+      settlements: RetryPendingSettlements,
+    ) => new HandlePaymentEvent(deps, confirm, release, settlements),
   },
   {
     provide: RetryPendingReleases,
@@ -168,6 +203,8 @@ const sharedProviders = [
     PaymentWebhookController,
     DevPaymentsController,
     AdminContractsController,
+    DisputesController,
+    AdminDisputesController,
   ],
   providers: sharedProviders,
   exports: [ContractsFacade],

@@ -53,23 +53,35 @@ export interface ContractSnapshot {
   approvalKind: 'CLIENT' | 'AUTO' | null;
   releasedAt: Date | null;
   transferRef: string | null;
+  /**
+   * Travas que pausam os prazos (`oos:<id>` = pedido fora de escopo pendente, `dispute:<id>`).
+   * Quando a última sai, prazo combinado e revisão em curso são estendidos pelo tempo parado.
+   */
+  holds: string[];
+  pausedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   version: number;
 }
 
-type ContractEvent = 'fund' | 'expire' | 'cancel' | 'approve' | 'release';
+type ContractEvent =
+  'fund' | 'expire' | 'cancel' | 'approve' | 'release' | 'dispute' | 'resume' | 'settle';
 
-/** Contrato (docs/architecture.md §4.3). Disputas e abandono estendem esta máquina na F8. */
+/**
+ * Contrato (docs/architecture.md §4.3). Disputa (inclusive abandono) congela o contrato até a
+ * decisão: retirada volta a ACTIVE; decisão executada encerra como SETTLED.
+ */
 export const contractMachine = defineStateMachine<ContractStatus, ContractEvent>({
   name: 'Contract',
   initial: 'AWAITING_PAYMENT',
-  terminal: ['RELEASED', 'EXPIRED', 'CANCELLED'],
+  terminal: ['RELEASED', 'SETTLED', 'EXPIRED', 'CANCELLED'],
   transitions: {
     AWAITING_PAYMENT: { fund: 'ACTIVE', expire: 'EXPIRED', cancel: 'CANCELLED' },
-    ACTIVE: { approve: 'APPROVED' },
+    ACTIVE: { approve: 'APPROVED', dispute: 'DISPUTED' },
+    DISPUTED: { resume: 'ACTIVE', settle: 'SETTLED' },
     APPROVED: { release: 'RELEASED' },
     RELEASED: {},
+    SETTLED: {},
     EXPIRED: {},
     CANCELLED: {},
   },
@@ -109,6 +121,11 @@ export const ContractEvents = {
   ReviewTimedOut: 'contracts.ReviewTimedOut',
   Approved: 'contracts.ContractApproved',
   Released: 'contracts.ContractReleased',
+  Disputed: 'contracts.ContractDisputed',
+  Abandoned: 'contracts.ContractAbandoned',
+  DisputeWithdrawn: 'contracts.DisputeWithdrawn',
+  Settled: 'contracts.ContractSettled',
+  ExtraFunded: 'contracts.ExtraFunded',
 } as const;
 
 export class DeliveryRuleError extends DomainError {
@@ -163,6 +180,8 @@ export class Contract extends AggregateRoot {
         approvalKind: null,
         releasedAt: null,
         transferRef: null,
+        holds: [],
+        pausedAt: null,
         createdAt: now,
         updatedAt: now,
       },
@@ -206,6 +225,12 @@ export class Contract extends AggregateRoot {
   }
   get transferRef(): string | null {
     return this.props.transferRef;
+  }
+  get paused(): boolean {
+    return this.props.pausedAt !== null;
+  }
+  get dueAt(): Date | null {
+    return this.props.dueAt;
   }
 
   isParticipant(userId: string): boolean {
@@ -336,6 +361,10 @@ export class Contract extends AggregateRoot {
   /** Aprovação do cliente em qualquer revisão (inclusive antecipada) ou automática na final. */
   approve(by: 'CLIENT' | 'AUTO', clientId: string | null, now: Date): void {
     if (by === 'CLIENT') this.assertActive(clientId === this.props.clientId);
+    if (this.props.holds.some((hold) => hold.startsWith('oos:')))
+      throw new DeliveryRuleError(
+        'Há um pedido fora de escopo em aberto: resolva-o (aceite, retire ou conteste) antes de aprovar.',
+      );
     if (!this.props.stage || !REVIEW_STAGES.includes(this.props.stage))
       throw new DeliveryRuleError('Não há entrega aguardando revisão.');
     this.transition('approve', now);
@@ -358,6 +387,7 @@ export class Contract extends AggregateRoot {
   reviewTimeout(now: Date): 'ADVANCED' | 'AUTO_APPROVED' | null {
     const delivery = this.currentDelivery;
     if (this.props.status !== 'ACTIVE' || !delivery || delivery.reviewedAt) return null;
+    if (this.props.pausedAt) return null;
     if (delivery.reviewDeadlineAt > now) return null;
     if (this.props.stage === 'FINAL_REVIEW') {
       this.approve('AUTO', null, now);
@@ -383,6 +413,95 @@ export class Contract extends AggregateRoot {
       contractId: this.id,
       projectId: this.props.projectId,
       freelancerId: this.props.freelancerId,
+    });
+  }
+
+  /** Pausa os prazos enquanto a trava existir (idempotente por chave). */
+  hold(key: string, now: Date): void {
+    if (this.props.holds.includes(key)) return;
+    if (this.props.holds.length === 0) this.props.pausedAt = now;
+    this.props.holds.push(key);
+    this.props.updatedAt = now;
+  }
+
+  /** Remove a trava; sem nenhuma, os prazos voltam a correr estendidos pelo tempo parado. */
+  releaseHold(key: string, now: Date): void {
+    if (!this.props.holds.includes(key)) return;
+    this.props.holds = this.props.holds.filter((hold) => hold !== key);
+    this.props.updatedAt = now;
+    if (this.props.holds.length > 0 || !this.props.pausedAt) return;
+    const pausedMs = Math.max(0, now.getTime() - this.props.pausedAt.getTime());
+    this.props.pausedAt = null;
+    if (this.props.dueAt) this.props.dueAt = new Date(this.props.dueAt.getTime() + pausedMs);
+    const delivery = this.currentDelivery;
+    if (delivery && !delivery.reviewedAt)
+      delivery.reviewDeadlineAt = new Date(delivery.reviewDeadlineAt.getTime() + pausedMs);
+  }
+
+  /** Adicional fora de escopo pago: soma aos valores em custódia e estende o prazo combinado. */
+  addExtra(extra: ContractAmounts, extraDays: number, outOfScopeId: string, now: Date): void {
+    if (this.props.status !== 'ACTIVE' && this.props.status !== 'DISPUTED')
+      throw new DeliveryRuleError('Este contrato não está em andamento.');
+    const a = this.props.amounts;
+    this.props.amounts = {
+      ...a,
+      proposalCents: a.proposalCents + extra.proposalCents,
+      platformFeeCents: a.platformFeeCents + extra.platformFeeCents,
+      clientTotalCents: a.clientTotalCents + extra.clientTotalCents,
+      freelancerNetCents: a.freelancerNetCents + extra.freelancerNetCents,
+    };
+    if (this.props.dueAt)
+      this.props.dueAt = new Date(this.props.dueAt.getTime() + extraDays * DAY_MS);
+    this.props.updatedAt = now;
+    this.record(ContractEvents.ExtraFunded, now, {
+      contractId: this.id,
+      projectId: this.props.projectId,
+      outOfScopeId,
+      clientTotalCents: extra.clientTotalCents,
+    });
+  }
+
+  /**
+   * Disputa aberta (por uma parte ou, no abandono, pelo freelancer/Admin): o contrato congela e
+   * os prazos param até a retirada ou a decisão.
+   */
+  openDispute(disputeId: string, kind: 'DISPUTE' | 'ABANDONMENT', now: Date): void {
+    this.transition('dispute', now);
+    this.hold(`dispute:${disputeId}`, now);
+    const payload = {
+      contractId: this.id,
+      projectId: this.props.projectId,
+      clientId: this.props.clientId,
+      freelancerId: this.props.freelancerId,
+      disputeId,
+    };
+    this.record(ContractEvents.Disputed, now, { ...payload, kind });
+    if (kind === 'ABANDONMENT') this.record(ContractEvents.Abandoned, now, payload);
+  }
+
+  /** Disputa retirada antes da decisão: o trabalho continua de onde parou. */
+  resumeAfterDispute(disputeId: string, now: Date): void {
+    this.transition('resume', now);
+    this.releaseHold(`dispute:${disputeId}`, now);
+    this.record(ContractEvents.DisputeWithdrawn, now, {
+      contractId: this.id,
+      projectId: this.props.projectId,
+      disputeId,
+    });
+  }
+
+  /** Decisão da disputa executada (repasse e/ou reembolso): contrato encerrado. */
+  settle(disputeId: string, now: Date): void {
+    this.transition('settle', now);
+    this.props.stage = null;
+    this.props.holds = [];
+    this.props.pausedAt = null;
+    this.props.closedAt = now;
+    this.record(ContractEvents.Settled, now, {
+      contractId: this.id,
+      projectId: this.props.projectId,
+      freelancerId: this.props.freelancerId,
+      disputeId,
     });
   }
 

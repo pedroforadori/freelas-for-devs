@@ -6,6 +6,7 @@ import { Badge } from '@f4d/ui/components/badge';
 import { Card } from '@f4d/ui/components/card';
 import { useQuery } from '@tanstack/react-query';
 import { ChatPanel } from '@/features/messaging/chat-panel';
+import { Mediation } from './mediation';
 import { dateTime, formatPriceRange } from '@/features/projects/format';
 import { api } from '@/lib/api';
 
@@ -75,6 +76,7 @@ export function ContractSection({ projectId }: { projectId: string }) {
                   <th className="py-2 pr-4">Pagamento</th>
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Valor</th>
+                  <th className="py-2 pr-4">Devolvido</th>
                   <th className="py-2 pr-4">Criado</th>
                   <th className="py-2">Confirmado</th>
                 </tr>
@@ -86,7 +88,13 @@ export function ContractSection({ projectId }: { projectId: string }) {
                       {payment.provider} · {payment.providerCheckoutId.slice(0, 18)}…
                     </td>
                     <td className="py-2 pr-4">{payment.status}</td>
-                    <td className="py-2 pr-4">{brl(payment.amountCents)}</td>
+                    <td className="py-2 pr-4">
+                      {brl(payment.amountCents)}
+                      {payment.outOfScopeId ? ' (adicional)' : ''}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {payment.refundedCents > 0 ? brl(payment.refundedCents) : '—'}
+                    </td>
                     <td className="py-2 pr-4">{dateTime.format(new Date(payment.createdAt))}</td>
                     <td className="py-2">
                       {payment.succeededAt ? dateTime.format(new Date(payment.succeededAt)) : '—'}
@@ -126,6 +134,7 @@ export function ContractSection({ projectId }: { projectId: string }) {
           </div>
         ) : null}
       </Card>
+      <Mediation contract={contract} projectId={projectId} />
       {CONTRACT_CHAT_STATUSES.includes(contract.status) ? (
         <ChatPanel
           source={{ kind: 'contract', contractId: contract.id }}

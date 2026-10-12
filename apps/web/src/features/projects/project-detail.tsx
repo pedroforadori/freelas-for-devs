@@ -127,6 +127,7 @@ function StatusPanel({ project }: { project: Project }) {
       );
     case 'IN_PROGRESS':
     case 'COMPLETED':
+    case 'CLOSED_BY_DISPUTE':
       return <InProgressCard project={project} viewer="client" />;
     case 'NO_CANDIDATES':
       return (

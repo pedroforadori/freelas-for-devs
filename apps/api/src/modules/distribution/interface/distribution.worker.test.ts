@@ -8,6 +8,7 @@ import type {
   CancelProjectRound,
   FinalizeHiring,
   OpenRound,
+  PenalizeAbandonment,
   RemoveSuspendedFreelancer,
   RevertSelection,
   SyncQueueEntry,
@@ -33,6 +34,7 @@ describe('DistributionEventHandler', () => {
       ContractFunded: ContractEvents.Funded,
       ContractExpired: ContractEvents.Expired,
       UserSuspended: UserEvents.Suspended,
+      ContractAbandoned: ContractEvents.Abandoned,
     });
   });
 
@@ -41,6 +43,7 @@ describe('DistributionEventHandler', () => {
     const open = { execute: vi.fn() };
     const cancel = { execute: vi.fn() };
     const removeSuspended = { execute: vi.fn() };
+    const penalize = { execute: vi.fn() };
     const handler = new DistributionEventHandler(
       sync as unknown as SyncQueueEntry,
       open as unknown as OpenRound,
@@ -48,6 +51,7 @@ describe('DistributionEventHandler', () => {
       { execute: vi.fn() } as unknown as FinalizeHiring,
       { execute: vi.fn() } as unknown as RevertSelection,
       removeSuspended as unknown as RemoveSuspendedFreelancer,
+      penalize as unknown as PenalizeAbandonment,
     );
     await handler.handle(event(ProfileEvents.Approved, { userId: 'u1', level: 'iniciante' }));
     await handler.handle(
@@ -63,5 +67,7 @@ describe('DistributionEventHandler', () => {
     expect(cancel.execute).toHaveBeenCalledWith('p1');
     await handler.handle(event(UserEvents.Suspended, { userId: 'u2' }));
     expect(removeSuspended.execute).toHaveBeenCalledWith('u2');
+    await handler.handle(event(ContractEvents.Abandoned, { freelancerId: 'f9', contractId: 'k1' }));
+    expect(penalize.execute).toHaveBeenCalledWith('f9');
   });
 });

@@ -11,6 +11,10 @@ export interface PaymentSnapshot {
   checkoutExpiresAt: Date;
   status: PaymentStatus;
   amountCents: number;
+  /** Devolvido ao cliente; igual ao valor = REFUNDED (parcial numa disputa fica SUCCEEDED). */
+  refundedCents: number;
+  /** Pagamento de um adicional fora de escopo (nulo = valor do contrato). */
+  outOfScopeId: string | null;
   succeededAt: Date | null;
   refundedAt: Date | null;
   createdAt: Date;
@@ -42,11 +46,20 @@ export class Payment {
   static start(
     input: Omit<
       PaymentSnapshot,
-      'status' | 'succeededAt' | 'refundedAt' | 'providerPaymentRef' | 'updatedAt' | 'version'
-    >,
+      | 'status'
+      | 'succeededAt'
+      | 'refundedAt'
+      | 'providerPaymentRef'
+      | 'updatedAt'
+      | 'version'
+      | 'refundedCents'
+      | 'outOfScopeId'
+    > & { outOfScopeId?: string | null },
   ) {
     return new Payment({
       ...input,
+      outOfScopeId: input.outOfScopeId ?? null,
+      refundedCents: 0,
       status: 'PENDING',
       providerPaymentRef: null,
       succeededAt: null,
@@ -81,6 +94,15 @@ export class Payment {
   get checkoutUrl(): string {
     return this.props.checkoutUrl;
   }
+  get outOfScopeId(): string | null {
+    return this.props.outOfScopeId;
+  }
+  /** Quanto ainda pode ser devolvido deste pagamento. */
+  get refundableCents(): number {
+    return this.props.status === 'SUCCEEDED'
+      ? this.props.amountCents - this.props.refundedCents
+      : 0;
+  }
 
   /** Checkout ainda utilizável (aberto e com folga antes de expirar). */
   isReusable(now: Date): boolean {
@@ -106,7 +128,21 @@ export class Payment {
 
   refund(now: Date): void {
     this.apply('refund', now);
+    this.props.refundedCents = this.props.amountCents;
     this.props.refundedAt = now;
+  }
+
+  /** Devolução de parte do pagamento (decisão de disputa); o total vira REFUNDED. */
+  refundPartially(amountCents: number, now: Date): void {
+    if (amountCents <= 0 || amountCents > this.refundableCents)
+      throw new RangeError(`Reembolso inválido: ${amountCents} de ${this.refundableCents}.`);
+    if (amountCents === this.refundableCents) {
+      this.refund(now);
+      return;
+    }
+    this.props.refundedCents += amountCents;
+    this.props.refundedAt = now;
+    this.props.updatedAt = now;
   }
 
   toSnapshot(): PaymentSnapshot {

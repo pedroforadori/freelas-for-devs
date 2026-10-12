@@ -5,13 +5,17 @@ import { projectTypeSchema } from './catalog.js';
 
 /**
  * Ciclo do contrato (docs/architecture.md §4.3): pagamento em custódia (F6), entregas em rodadas
- * e liberação do pagamento ao freelancer (F7). Disputas e fora de escopo chegam na F8.
+ * e liberação do pagamento ao freelancer (F7); fora de escopo, disputas e abandono (F8).
  */
 export const ContractStatus = {
   AwaitingPayment: 'AWAITING_PAYMENT',
   Active: 'ACTIVE',
   Approved: 'APPROVED',
   Released: 'RELEASED',
+  /** Disputa aberta (inclui abandono): prazos pausados até a decisão do Admin. */
+  Disputed: 'DISPUTED',
+  /** Encerrado pela decisão da disputa (repasse e/ou reembolso executados). */
+  Settled: 'SETTLED',
   Expired: 'EXPIRED',
   Cancelled: 'CANCELLED',
 } as const;
@@ -25,6 +29,8 @@ export const CONTRACT_STATUS_LABELS: Readonly<Record<ContractStatus, string>> = 
   ACTIVE: 'Em andamento',
   APPROVED: 'Aprovado — liberando pagamento',
   RELEASED: 'Concluído e pago',
+  DISPUTED: 'Em disputa',
+  SETTLED: 'Encerrado pela mediação',
   EXPIRED: 'Prazo de pagamento encerrado',
   CANCELLED: 'Cancelado',
 };
@@ -186,6 +192,155 @@ export const contractAmountsSchema = z
   })
   .meta({ id: 'ContractAmounts' });
 
+/** Pedido marcado pelo freelancer como fora do escopo aprovado (docs/architecture.md §4.4). */
+export const OutOfScopeStatus = {
+  ExtraProposed: 'EXTRA_PROPOSED',
+  Contested: 'CONTESTED',
+  AwaitingPayment: 'ACCEPTED_AWAITING_PAYMENT',
+  Funded: 'ACCEPTED_FUNDED',
+  Withdrawn: 'WITHDRAWN',
+  RuledInScope: 'RULED_IN_SCOPE',
+} as const;
+export type OutOfScopeStatus = (typeof OutOfScopeStatus)[keyof typeof OutOfScopeStatus];
+export const outOfScopeStatusSchema = z.enum(
+  Object.values(OutOfScopeStatus) as [OutOfScopeStatus, ...OutOfScopeStatus[]],
+);
+
+export const OUT_OF_SCOPE_STATUS_LABELS: Readonly<Record<OutOfScopeStatus, string>> = {
+  EXTRA_PROPOSED: 'Aguardando o cliente',
+  CONTESTED: 'Contestado — aguardando a mediação',
+  ACCEPTED_AWAITING_PAYMENT: 'Aceito — aguardando pagamento',
+  ACCEPTED_FUNDED: 'Adicional pago',
+  WITHDRAWN: 'Retirado',
+  RULED_IN_SCOPE: 'Dentro do escopo (decisão da mediação)',
+};
+
+/** Pedidos que ainda pausam os prazos do contrato. */
+export const OUT_OF_SCOPE_PENDING: readonly OutOfScopeStatus[] = [
+  'EXTRA_PROPOSED',
+  'CONTESTED',
+  'ACCEPTED_AWAITING_PAYMENT',
+];
+
+export const outOfScopeRequestSchema = z
+  .object({
+    id: z.uuid(),
+    status: outOfScopeStatusSchema,
+    /** O que o cliente pediu e por que está fora do escopo aprovado. */
+    description: z.string(),
+    /** Valor adicional proposto (antes da comissão) e o efeito para cada lado. */
+    amountCents: z.number().int(),
+    clientTotalCents: z.number().int(),
+    freelancerNetCents: z.number().int(),
+    extraDays: z.number().int(),
+    contestReason: z.string().nullable(),
+    ruling: z
+      .object({
+        decision: z.enum(['IN_SCOPE', 'OUT_OF_SCOPE']),
+        note: z.string(),
+        decidedAt: z.iso.datetime(),
+      })
+      .nullable(),
+    paymentDeadlineAt: z.iso.datetime().nullable(),
+    paymentInProgress: z.boolean(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .meta({ id: 'OutOfScopeRequest' });
+
+/** Disputa do contrato (docs/architecture.md §4.5); abandono é uma disputa do tipo ABANDONMENT. */
+export const DisputeStatus = {
+  Open: 'OPEN',
+  UnderReview: 'UNDER_REVIEW',
+  Withdrawn: 'WITHDRAWN',
+  Executing: 'EXECUTING',
+  Closed: 'CLOSED',
+} as const;
+export type DisputeStatus = (typeof DisputeStatus)[keyof typeof DisputeStatus];
+export const disputeStatusSchema = z.enum(
+  Object.values(DisputeStatus) as [DisputeStatus, ...DisputeStatus[]],
+);
+
+export const DISPUTE_STATUS_LABELS: Readonly<Record<DisputeStatus, string>> = {
+  OPEN: 'Aberta — recebendo as versões das partes',
+  UNDER_REVIEW: 'Em análise pela mediação',
+  WITHDRAWN: 'Retirada',
+  EXECUTING: 'Decidida — executando repasse e reembolso',
+  CLOSED: 'Encerrada',
+};
+
+export const DisputeReason = {
+  Quality: 'QUALITY',
+  Deadline: 'DEADLINE',
+  Scope: 'SCOPE',
+  Communication: 'COMMUNICATION',
+  Abandonment: 'ABANDONMENT',
+  Other: 'OTHER',
+} as const;
+export type DisputeReason = (typeof DisputeReason)[keyof typeof DisputeReason];
+export const disputeReasonSchema = z.enum(
+  Object.values(DisputeReason) as [DisputeReason, ...DisputeReason[]],
+);
+
+export const DISPUTE_REASON_LABELS: Readonly<Record<DisputeReason, string>> = {
+  QUALITY: 'Entrega com problemas ou incompleta',
+  DEADLINE: 'Prazo descumprido',
+  SCOPE: 'Divergência sobre o escopo',
+  COMMUNICATION: 'A outra parte não responde',
+  ABANDONMENT: 'Abandono do projeto',
+  OTHER: 'Outro motivo',
+};
+
+export const DISPUTE_LIMITS = {
+  descriptionMin: 30,
+  descriptionMax: 4000,
+  statementMin: 20,
+  statementMax: 4000,
+  statementsPerParty: 5,
+  attachmentsMax: 10,
+} as const;
+
+const fileRefSchema = z.object({
+  id: z.uuid(),
+  fileName: z.string(),
+  size: z.number().int(),
+  status: z.string(),
+});
+
+export const disputeSchema = z
+  .object({
+    id: z.uuid(),
+    kind: z.enum(['DISPUTE', 'ABANDONMENT']),
+    status: disputeStatusSchema,
+    openedBy: z.enum(['CLIENT', 'FREELANCER', 'ADMIN']),
+    reason: disputeReasonSchema,
+    description: z.string(),
+    /** Até quando as partes podem enviar sua versão (depois, a mediação analisa). */
+    evidenceDeadlineAt: z.iso.datetime(),
+    statements: z.array(
+      z.object({
+        role: z.enum(['CLIENT', 'FREELANCER']),
+        text: z.string(),
+        attachments: z.array(fileRefSchema),
+        createdAt: z.iso.datetime(),
+      }),
+    ),
+    resolution: z
+      .object({
+        /** Parte do trabalho reconhecida ao freelancer (10000 = 100%). */
+        freelancerShareBps: z.number().int(),
+        note: z.string(),
+        freelancerCents: z.number().int(),
+        platformFeeCents: z.number().int(),
+        refundCents: z.number().int(),
+        decidedAt: z.iso.datetime(),
+      })
+      .nullable(),
+    closedAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime(),
+  })
+  .meta({ id: 'Dispute' });
+
 export const contractSchema = z
   .object({
     id: z.uuid(),
@@ -201,6 +356,11 @@ export const contractSchema = z
     paymentInProgress: z.boolean(),
     /** Entregas e aprovação (a partir do pagamento). */
     work: contractWorkSchema.nullable(),
+    /** Prazos pausados (pedido fora de escopo pendente ou disputa aberta). */
+    paused: z.boolean(),
+    outOfScope: z.array(outOfScopeRequestSchema),
+    /** Disputa mais recente (aberta ou encerrada). */
+    dispute: disputeSchema.nullable(),
     createdAt: z.iso.datetime(),
   })
   .meta({ id: 'Contract' });
@@ -212,6 +372,10 @@ export const adminContractSchema = contractSchema
         id: z.uuid(),
         status: paymentStatusSchema,
         amountCents: z.number().int(),
+        /** Devolvido ao cliente (parcial numa disputa; total = REFUNDED). */
+        refundedCents: z.number().int(),
+        /** Pagamento de um adicional fora de escopo (nulo = valor do contrato). */
+        outOfScopeId: z.uuid().nullable(),
         provider: z.string(),
         providerCheckoutId: z.string(),
         createdAt: z.iso.datetime(),
@@ -266,6 +430,8 @@ export type RatingInput = z.infer<typeof ratingInputSchema>;
 export type AdminContract = z.infer<typeof adminContractSchema>;
 export type ContractAmounts = z.infer<typeof contractAmountsSchema>;
 export type PayoutAccount = z.infer<typeof payoutAccountSchema>;
+export type OutOfScopeRequest = z.infer<typeof outOfScopeRequestSchema>;
+export type Dispute = z.infer<typeof disputeSchema>;
 
 const contractParams = z.object({ contractId: z.uuid() });
 const projectParams = z.object({ projectId: z.uuid() });

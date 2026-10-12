@@ -6,6 +6,7 @@ import { distributionRoutes } from './modules/distribution.js';
 import { fileRoutes } from './modules/files.js';
 import { healthRoutes } from './modules/health.js';
 import { leadRoutes } from './modules/leads.js';
+import { disputeRoutes } from './modules/disputes.js';
 import { messagingRoutes } from './modules/messaging.js';
 import { profileRoutes } from './modules/profiles.js';
 import { projectRoutes } from './modules/projects.js';
@@ -24,6 +25,7 @@ export const apiRoutes = {
   distribution: distributionRoutes,
   contracts: contractRoutes,
   messaging: messagingRoutes,
+  disputes: disputeRoutes,
 } as const;
 
 export const allRoutes = (): RouteContract[] =>

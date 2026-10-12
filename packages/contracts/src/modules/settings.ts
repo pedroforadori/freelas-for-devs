@@ -162,6 +162,23 @@ export const SETTINGS = {
     input: { kind: 'integer', unit: 'dias' },
     usedFrom: 'F7',
   }),
+  'dispute.evidenceDays': define({
+    schema: z.number().int().min(1).max(14),
+    default: 3,
+    label: 'Prazo para as partes se manifestarem na disputa',
+    description: 'Depois dele (ou quando as duas partes enviarem sua versão), a mediação analisa.',
+    input: { kind: 'integer', unit: 'dias' },
+    usedFrom: 'F8',
+  }),
+  'queue.abandonPenaltyDays': define({
+    schema: z.number().int().min(0).max(180),
+    default: 30,
+    label: 'Penalidade na fila por abandono',
+    description:
+      'Quem abandona um contrato vai para o fim da fila e só volta a ser convidado depois disso.',
+    input: { kind: 'integer', unit: 'dias' },
+    usedFrom: 'F8',
+  }),
 } as const;
 
 export type SettingKey = keyof typeof SETTINGS;

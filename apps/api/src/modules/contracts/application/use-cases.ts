@@ -16,6 +16,7 @@ import { Payment } from '../domain/payment.js';
 import {
   approvedEmail,
   deliveryReviewedEmail,
+  extraFundedEmail,
   deliverySubmittedEmail,
   lateRefundEmail,
   releasedEmail,
@@ -32,7 +33,7 @@ const CHECKOUT_MIN_MS = 31 * 60_000;
 
 type Mail = Parameters<ContractsDeps['mailer']['send']>[0];
 
-abstract class ContractsUseCase {
+export abstract class ContractsUseCase {
   constructor(protected readonly deps: ContractsDeps) {}
 
   protected async participantContract(userId: string, contractId: string): Promise<Contract> {
@@ -53,6 +54,25 @@ abstract class ContractsUseCase {
 
   protected contractUrl(contractId: string): string {
     return `${this.deps.webAppUrl}/contratos/${contractId}`;
+  }
+
+  protected async projectTitle(projectId: string): Promise<string> {
+    return (await this.deps.projects.find(projectId))?.title ?? 'Projeto';
+  }
+
+  /**
+   * Conta de recebimento pronta para repasses. O aviso do provedor (account.updated) pode ter se
+   * perdido: se o banco diz que não, confere direto nele.
+   */
+  protected async readyPayoutAccount(freelancerId: string) {
+    const account = await this.deps.payoutAccounts.find(freelancerId);
+    if (!account) return null;
+    if (account.payoutsEnabled) return account;
+    const fresh = await this.deps.gateway.retrieveAccount(account.providerAccountId);
+    if (!fresh.payoutsEnabled) return null;
+    const updated = { ...account, ...fresh };
+    await this.deps.payoutAccounts.save(updated, this.deps.clock.now());
+    return updated;
   }
 }
 
@@ -173,9 +193,23 @@ export class ConfirmPayment extends ContractsUseCase {
           amountCents,
         ),
       );
-      const accepted =
-        contract.status === 'AWAITING_PAYMENT' && amountCents === contract.amounts.clientTotalCents;
-      if (accepted) {
+      const extra = payment.outOfScopeId
+        ? await this.deps.outOfScope.find(payment.outOfScopeId)
+        : null;
+      const accepted = extra
+        ? extra.status === 'ACCEPTED_AWAITING_PAYMENT' &&
+          amountCents === extra.amounts.clientTotalCents &&
+          (contract.status === 'ACTIVE' || contract.status === 'DISPUTED')
+        : contract.status === 'AWAITING_PAYMENT' &&
+          amountCents === contract.amounts.clientTotalCents;
+      if (accepted && extra) {
+        // Adicional fora de escopo pago: soma à custódia, estende o prazo e libera os prazos.
+        extra.fund(now);
+        contract.addExtra(extra.amounts, extra.extraDays, extra.id, now);
+        contract.releaseHold(extra.holdKey, now);
+        await this.deps.outOfScope.save(extra);
+        await contracts.save(contract);
+      } else if (accepted) {
         contract.fund(
           {
             reviewDays: await this.deps.settings.get('delivery.reviewDays'),
@@ -207,13 +241,19 @@ export class ConfirmPayment extends ContractsUseCase {
         if (paymentRef) await gateway.refund(paymentRef, amountCents, `refund:${payment.id}`);
       }
       await payments.save(payment);
-      return { contract, accepted };
+      return { contract, accepted, extra };
     });
     if (!outcome) return;
 
-    const { contract, accepted } = outcome;
+    const { contract, accepted, extra } = outcome;
     const url = this.projectUrl(contract.projectId);
     const title = (await this.deps.projects.find(contract.projectId))?.title ?? 'Projeto';
+    if (accepted && extra) {
+      await this.mail(contract.freelancerId, (to, name) =>
+        extraFundedEmail(to, name, title, this.contractUrl(contract.id)),
+      );
+      return;
+    }
     if (accepted) {
       await this.mail(contract.clientId, (to, name) =>
         paymentConfirmedClientEmail(to, name, title, url),
@@ -233,6 +273,7 @@ export class HandlePaymentEvent extends ContractsUseCase {
     deps: ContractsDeps,
     private readonly confirm: ConfirmPayment,
     private readonly release?: ReleasePayment,
+    private readonly settlements?: { execute(): Promise<number> },
   ) {
     super(deps);
   }
@@ -286,6 +327,8 @@ export class HandlePaymentEvent extends ContractsUseCase {
             });
             for (const contractId of pending) await this.release.execute(contractId);
           }
+          // Decisões de disputa que esperavam a conta para o repasse.
+          if (event.payoutsEnabled && this.settlements) await this.settlements.execute();
         }
         break;
       }
@@ -623,15 +666,8 @@ export class ReleasePayment extends ContractsUseCase {
     const outcome = await this.deps.uow.run(async (): Promise<ReleaseOutcome> => {
       const contract = await this.deps.contracts.find(contractId);
       if (contract?.status !== 'APPROVED') return 'SKIPPED';
-      let account = await this.deps.payoutAccounts.find(contract.freelancerId);
+      const account = await this.readyPayoutAccount(contract.freelancerId);
       if (!account) return 'WAITING_ACCOUNT';
-      if (!account.payoutsEnabled) {
-        // O aviso do provedor (account.updated) pode ter se perdido: confere direto nele.
-        const fresh = await this.deps.gateway.retrieveAccount(account.providerAccountId);
-        if (!fresh.payoutsEnabled) return 'WAITING_ACCOUNT';
-        account = { ...account, ...fresh };
-        await this.deps.payoutAccounts.save(account, this.deps.clock.now());
-      }
 
       const { freelancerNetCents, platformFeeCents } = contract.amounts;
       const transferRef = await this.deps.gateway.createTransfer(

@@ -129,3 +129,129 @@ export const releasedEmail = (
     ],
     { label: 'Ver contrato', url },
   );
+
+export const extraFundedEmail = (to: string, name: string, title: string, url: string) =>
+  simple(
+    to,
+    'contracts.extra-funded',
+    `Adicional pago: ${title}`,
+    [
+      `Olá, ${name}! O cliente pagou o adicional fora de escopo do projeto "${title}". O valor está em custódia junto com o do contrato e o prazo combinado foi estendido.`,
+    ],
+    { label: 'Ver contrato', url },
+  );
+
+export const outOfScopeFlaggedEmail = (
+  to: string,
+  name: string,
+  title: string,
+  amount: string,
+  url: string,
+) =>
+  simple(
+    to,
+    'contracts.out-of-scope-flagged',
+    `Pedido fora do escopo: ${title}`,
+    [
+      `Olá, ${name}. O dev marcou um pedido seu no projeto "${title}" como fora do escopo aprovado e propôs um adicional de ${amount}.`,
+      'Você pode aceitar (e pagar à parte, em custódia), retirar o pedido ou contestar, se entende que já estava combinado. Enquanto isso, os prazos do contrato ficam pausados.',
+    ],
+    { label: 'Responder', url },
+  );
+
+const ANSWER_TEXT = {
+  ACCEPTED:
+    'aceitou o adicional e vai pagar à parte. Os prazos voltam a correr quando o pagamento for confirmado.',
+  WITHDRAWN: 'retirou o pedido. Os prazos do contrato voltaram a correr.',
+  CONTESTED:
+    'contestou: entende que o pedido já estava no escopo. A mediação vai analisar e avisar vocês.',
+} as const;
+
+export const outOfScopeAnsweredEmail = (
+  to: string,
+  name: string,
+  title: string,
+  answer: keyof typeof ANSWER_TEXT,
+  url: string,
+) =>
+  simple(
+    to,
+    'contracts.out-of-scope-answered',
+    `Resposta ao pedido fora do escopo: ${title}`,
+    [`Olá, ${name}. No projeto "${title}", o cliente ${ANSWER_TEXT[answer]}`],
+    { label: 'Ver contrato', url },
+  );
+
+export const outOfScopeRuledEmail = (
+  to: string,
+  name: string,
+  title: string,
+  decision: 'IN_SCOPE' | 'OUT_OF_SCOPE',
+  note: string,
+  url: string,
+) =>
+  simple(
+    to,
+    'contracts.out-of-scope-ruled',
+    `Decisão sobre o pedido fora do escopo: ${title}`,
+    [
+      `Olá, ${name}. A mediação analisou o pedido contestado no projeto "${title}".`,
+      decision === 'IN_SCOPE'
+        ? 'Decisão: o pedido já fazia parte do escopo aprovado e entra no trabalho sem custo adicional. Os prazos voltaram a correr.'
+        : 'Decisão: o pedido está fora do escopo aprovado. O cliente pode aceitar o adicional ou retirar o pedido.',
+      `Justificativa: ${note}`,
+    ],
+    { label: 'Ver contrato', url },
+  );
+
+export const disputeOpenedEmail = (
+  to: string,
+  name: string,
+  title: string,
+  kind: 'DISPUTE' | 'ABANDONMENT',
+  deadline: string,
+  url: string,
+) =>
+  simple(
+    to,
+    'contracts.dispute-opened',
+    kind === 'ABANDONMENT' ? `Projeto abandonado: ${title}` : `Disputa aberta: ${title}`,
+    [
+      kind === 'ABANDONMENT'
+        ? `Olá, ${name}. O projeto "${title}" foi registrado como abandonado pelo dev. O valor em custódia fica protegido até a decisão da mediação.`
+        : `Olá, ${name}. Foi aberta uma disputa no projeto "${title}". O valor em custódia fica protegido e os prazos do contrato estão pausados.`,
+      `Envie sua versão (texto e arquivos) até ${deadline}. Depois disso, a mediação analisa o escopo, as entregas e a conversa do contrato e decide.`,
+    ],
+    { label: 'Enviar minha versão', url },
+  );
+
+export const disputeWithdrawnEmail = (to: string, name: string, title: string, url: string) =>
+  simple(
+    to,
+    'contracts.dispute-withdrawn',
+    `Disputa retirada: ${title}`,
+    [
+      `Olá, ${name}. A disputa do projeto "${title}" foi retirada por quem a abriu. O contrato voltou a andar e os prazos foram estendidos pelo tempo em que ficaram pausados.`,
+    ],
+    { label: 'Ver contrato', url },
+  );
+
+export const disputeResolvedEmail = (
+  to: string,
+  name: string,
+  title: string,
+  outcome: string,
+  note: string,
+  url: string,
+) =>
+  simple(
+    to,
+    'contracts.dispute-resolved',
+    `Decisão da disputa: ${title}`,
+    [
+      `Olá, ${name}. A mediação decidiu a disputa do projeto "${title}".`,
+      outcome,
+      `Justificativa: ${note}`,
+    ],
+    { label: 'Ver contrato', url },
+  );

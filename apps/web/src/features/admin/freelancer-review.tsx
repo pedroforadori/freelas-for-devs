@@ -166,6 +166,7 @@ export function FreelancerReview({ userId }: { userId: string }) {
       </div>
 
       <Decision profile={p} />
+      <ContractStats userId={userId} />
 
       <Card tone="white" className="flex flex-col gap-4">
         <h2 className="text-h4 font-medium">{p.headline || 'Sem título'}</h2>
@@ -236,5 +237,42 @@ export function FreelancerReview({ userId }: { userId: string }) {
         </ul>
       </section>
     </>
+  );
+}
+
+/** Histórico de contratos como dev: concluídos, disputas, abandonos e pedidos fora de escopo. */
+function ContractStats({ userId }: { userId: string }) {
+  const query = useQuery({
+    queryKey: ['admin', 'users', userId, 'contract-stats'],
+    queryFn: () =>
+      unwrap(api.GET('/v1/admin/users/{userId}/contract-stats', { params: { path: { userId } } })),
+  });
+  const stats = query.data?.asFreelancer;
+  if (!stats || stats.contracts === 0) return null;
+  const items: [string, string | number][] = [
+    ['Contratos', stats.contracts],
+    ['Concluídos', stats.completed],
+    ['Encerrados pela mediação', stats.settledByMediation],
+    ['Disputas abertas por ele', stats.disputesOpened],
+    ['Abandonos', stats.abandonments],
+    ['Pedidos fora de escopo', stats.outOfScopeFlagged],
+    ['…dos quais estavam no escopo', stats.outOfScopeRuledInScope],
+    [
+      'Parte média reconhecida em disputas',
+      stats.averageShareBps === null ? '—' : `${stats.averageShareBps / 100}%`,
+    ],
+  ];
+  return (
+    <Card tone="white" className="flex flex-col gap-4">
+      <h2 className="text-h4 font-medium">Histórico de contratos</h2>
+      <dl className="grid gap-3 text-body sm:grid-cols-4">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-sm text-muted">{label}</dt>
+            <dd className="font-medium">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   );
 }

@@ -16,7 +16,7 @@ import { Badge } from '@f4d/ui/components/badge';
 import { Button, buttonClasses } from '@f4d/ui/components/button';
 import { Card } from '@f4d/ui/components/card';
 import { Field, Input, Textarea } from '@f4d/ui/components/field';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { type ChangeEvent, useState } from 'react';
 import { useSession } from '@/features/auth/session';
@@ -27,8 +27,8 @@ import { errorMessage } from '@/lib/problem';
 import { UploadRejectedError, uploadFile } from '@/lib/upload';
 import { ChatPanel } from '@/features/messaging/chat-panel';
 import { AmountsTable } from './contract-cards';
-
-const contractKey = (contractId: string) => ['contracts', contractId] as const;
+import { DisputeSection, OutOfScopeSection, PausedNotice } from './issues';
+import { contractKey, useSetContract } from './queries';
 
 const OUTCOME_LABELS: Record<NonNullable<Delivery['outcome']>, string> = {
   ADJUSTMENTS: 'Ajustes pedidos',
@@ -47,6 +47,13 @@ export function ContractWorkspace({ contractId }: { contractId: string }) {
     queryKey: contractKey(contractId),
     queryFn: () =>
       unwrap(api.GET('/v1/contracts/{contractId}', { params: { path: { contractId } } })),
+    // Voltando do checkout de um adicional: acompanha até o pagamento ser confirmado.
+    refetchInterval: (q) =>
+      q.state.data?.outOfScope.some(
+        (request) => request.status === 'ACCEPTED_AWAITING_PAYMENT' && request.paymentInProgress,
+      )
+        ? 4_000
+        : false,
   });
   if (query.isPending) return <p role="status">Carregando…</p>;
   if (query.isError) return <Alert tone="error">{errorMessage(query.error)}</Alert>;
@@ -59,7 +66,9 @@ export function ContractWorkspace({ contractId }: { contractId: string }) {
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <Badge tone="dark">{CONTRACT_STATUS_LABELS[contract.status]}</Badge>
-          {work?.stage ? <Badge tone="accent">{DELIVERY_STAGE_LABELS[work.stage]}</Badge> : null}
+          {work?.stage && contract.status === 'ACTIVE' ? (
+            <Badge tone="accent">{DELIVERY_STAGE_LABELS[work.stage]}</Badge>
+          ) : null}
         </div>
         <h1 className="text-h3 font-medium md:text-h2">{contract.project.title}</h1>
         <p className="text-body text-muted">
@@ -70,7 +79,10 @@ export function ContractWorkspace({ contractId }: { contractId: string }) {
         </p>
       </div>
 
+      <PausedNotice contract={contract} />
+      <DisputeSection contract={contract} viewer={viewer} />
       <NextStep contract={contract} viewer={viewer} />
+      <OutOfScopeSection contract={contract} viewer={viewer} />
 
       {CONTRACT_CHAT_STATUSES.includes(contract.status) ? (
         <ChatPanel
@@ -113,6 +125,8 @@ function NextStep({ contract, viewer }: { contract: Contract; viewer: 'client' |
   if (contract.status === 'APPROVED' || contract.status === 'RELEASED') {
     return <Completed contract={contract} viewer={viewer} />;
   }
+  // Em disputa, o cartão da disputa é o próximo passo; encerrado pela mediação, ele mostra a decisão.
+  if (contract.status === 'DISPUTED' || contract.status === 'SETTLED') return null;
   if (!work?.stage) {
     return (
       <Alert>
@@ -228,14 +242,6 @@ function DeliveryCard({ delivery }: { delivery: Delivery }) {
       ) : null}
     </article>
   );
-}
-
-function useSetContract(contractId: string) {
-  const queryClient = useQueryClient();
-  return (contract: Contract) => {
-    queryClient.setQueryData(contractKey(contractId), contract);
-    void queryClient.invalidateQueries({ queryKey: ['contracts', 'mine'] });
-  };
 }
 
 /** Freelancer: entrega da etapa atual, com os ajustes pendentes à vista. */

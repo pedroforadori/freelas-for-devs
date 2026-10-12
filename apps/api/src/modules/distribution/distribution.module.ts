@@ -19,6 +19,7 @@ import { ScreenText } from '../messaging/application/use-cases.js';
 import { MessagingModule } from '../messaging/messaging.module.js';
 import { DISTRIBUTION_DEPS, type DistributionDeps } from './application/ports.js';
 import {
+  PenalizeAbandonment,
   CancelProjectRound,
   ExpireOverdueInvitations,
   FinalizeHiring,
@@ -52,6 +53,7 @@ const USE_CASES = [
   OpenRound,
   ExpireOverdueInvitations,
   RemoveSuspendedFreelancer,
+  PenalizeAbandonment,
   SelectProposal,
   FinalizeHiring,
   CancelProjectRound,

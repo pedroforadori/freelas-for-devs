@@ -1,4 +1,9 @@
-import type { ProjectStatus, ProjectType } from '@f4d/contracts';
+import type {
+  AdminDisputeSummary,
+  ProjectStatus,
+  ProjectType,
+  UserContractStats,
+} from '@f4d/contracts';
 import type { AuditLogger } from '../../../shared/application/audit-log.js';
 import type { Mailer } from '../../../shared/application/mailer.js';
 import type { SettingsReader } from '../../../shared/application/settings-reader.js';
@@ -6,6 +11,8 @@ import type { UnitOfWork } from '../../../shared/application/unit-of-work.js';
 import type { Clock } from '../../../shared/kernel/clock.js';
 import type { IdGenerator } from '../../../shared/kernel/domain-event.js';
 import type { Contract } from '../domain/contract.js';
+import type { Dispute } from '../domain/dispute.js';
+import type { OutOfScopeRequest } from '../domain/out-of-scope.js';
 import type { Journal, LedgerAccount } from '../domain/ledger.js';
 import type { Payment } from '../domain/payment.js';
 
@@ -172,6 +179,32 @@ export interface ProjectGateway {
   find(projectId: string): Promise<ProjectInfo | null>;
   startWork(projectId: string): Promise<void>;
   complete(projectId: string): Promise<void>;
+  closeByDispute(projectId: string): Promise<void>;
+}
+
+export interface OutOfScopeRepository {
+  find(id: string): Promise<OutOfScopeRequest | null>;
+  listByContract(contractId: string): Promise<OutOfScopeRequest[]>;
+  save(request: OutOfScopeRequest): Promise<void>;
+  /** Adicionais aceitos e não pagos no prazo (reconciliador). */
+  awaitingPaymentPastDeadline(now: Date, limit: number): Promise<string[]>;
+}
+
+export interface DisputeRepository {
+  find(id: string): Promise<Dispute | null>;
+  /** Disputa em andamento (OPEN, UNDER_REVIEW ou EXECUTING) do contrato. */
+  findActiveByContract(contractId: string): Promise<Dispute | null>;
+  findLatestByContract(contractId: string): Promise<Dispute | null>;
+  save(dispute: Dispute): Promise<void>;
+  /** Abertas com o prazo de manifestação vencido (reconciliador). */
+  openPastEvidenceDeadline(now: Date, limit: number): Promise<string[]>;
+  /** Decididas ainda em execução (nova tentativa de repasse/reembolso). */
+  executing(limit: number): Promise<string[]>;
+}
+
+export interface DisputeQueries {
+  adminList(view: 'open' | 'closed'): Promise<AdminDisputeSummary[]>;
+  userStats(userId: string): Promise<UserContractStats>;
 }
 
 export interface PeopleDirectory {
@@ -185,6 +218,9 @@ export interface ContractsDeps {
   inbox: WebhookInbox;
   payoutAccounts: PayoutAccounts;
   ratings: Ratings;
+  outOfScope: OutOfScopeRepository;
+  disputes: DisputeRepository;
+  disputeQueries: DisputeQueries;
   files: FileAccess;
   gateway: PaymentGateway;
   projects: ProjectGateway;
