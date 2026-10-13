@@ -14,9 +14,11 @@ import { emailSchema } from '@f4d/contracts';
 import { infrastructureModules } from '../app.module.js';
 import { ProvisionAdmin } from '../modules/identity/application/admin-use-cases.js';
 import { IdentityModule } from '../modules/identity/identity.module.js';
+import { SettingsReaderModule } from '../modules/settings/settings.module.js';
 import { MailModule } from '../shared/infra/mail/mail.module.js';
 
-@Module({ imports: [...infrastructureModules, MailModule, IdentityModule] })
+// SettingsReaderModule: a identidade consulta o modo de cadastro (beta fechado) via leads.
+@Module({ imports: [...infrastructureModules, MailModule, SettingsReaderModule, IdentityModule] })
 class ProvisionAdminCliModule {}
 
 const { values } = parseArgs({
