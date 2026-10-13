@@ -69,4 +69,16 @@ describe('loadEnv', () => {
   it('rejects wildcard CORS', () => {
     expect(() => loadEnv({ ...valid, CORS_ORIGINS: '*' })).toThrow(InvalidEnvironmentError);
   });
+  it('treats empty values (VAR= in .env) as not set', () => {
+    const env = loadEnv({
+      ...valid,
+      SENTRY_DSN: '',
+      FIELD_ENCRYPTION_KEY: '  ',
+      GITHUB_CLIENT_ID: '',
+      RATE_LIMIT_PER_MINUTE: '',
+    });
+    expect(env.SENTRY_DSN).toBeUndefined();
+    expect(env.FIELD_ENCRYPTION_KEY).toBeUndefined();
+    expect(env.RATE_LIMIT_PER_MINUTE).toBe(120);
+  });
 });

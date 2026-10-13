@@ -2,6 +2,7 @@
  * Aplica as migrações pendentes. Roda como release job antes do rollout (docs/architecture.md §8),
  * com um usuário de banco diferente do usado pela aplicação.
  */
+import '../shared/config/dotenv.js';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';

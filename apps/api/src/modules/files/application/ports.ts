@@ -11,7 +11,7 @@ export interface FileRepository {
 
 export type Bucket = 'quarantine' | 'files';
 
-/** Storage S3-compatível (Cloudflare R2 em produção, MinIO em dev). */
+/** Storage S3-compatível (Cloudflare R2 em produção, RustFS em dev). */
 export interface ObjectStorage {
   /** URL PUT pré-assinada com Content-Type e Content-Length exatos na assinatura. */
   presignUpload(input: {

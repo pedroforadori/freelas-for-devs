@@ -29,7 +29,7 @@ const isNotFound = (error: unknown) =>
   error instanceof S3ServiceException &&
   (error.name === 'NotFound' || error.$metadata.httpStatusCode === 404);
 
-/** Cloudflare R2 (produção) ou MinIO (dev) pela API S3. Buckets privados; acesso só assinado. */
+/** Cloudflare R2 (produção) ou RustFS (dev) pela API S3. Buckets privados; acesso só assinado. */
 export class S3ObjectStorage implements ObjectStorage {
   private readonly client: S3Client;
 

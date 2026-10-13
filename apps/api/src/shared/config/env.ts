@@ -91,14 +91,14 @@ export const envSchema = z
       }),
     ),
 
-    /** Storage S3-compatível: Cloudflare R2 em produção, MinIO em dev (ver infra/docker-compose.yml). */
+    /** Storage S3-compatível: Cloudflare R2 em produção, RustFS em dev (ver infra/docker-compose.yml). */
     S3_ENDPOINT: z.url().optional(),
     S3_REGION: z.string().default('auto'),
     S3_ACCESS_KEY_ID: z.string().min(1),
     S3_SECRET_ACCESS_KEY: z.string().min(1),
     S3_BUCKET_QUARANTINE: z.string().default('f4d-quarantine'),
     S3_BUCKET_FILES: z.string().default('f4d-files'),
-    /** true para MinIO; R2/S3 usam virtual-hosted style. */
+    /** true para o RustFS local; R2/S3 usam virtual-hosted style. */
     S3_FORCE_PATH_STYLE: z.stringbool().default(false),
 
     /** Antivírus dos uploads. `disabled` só em desenvolvimento. */
@@ -226,7 +226,11 @@ export class InvalidEnvironmentError extends Error {
 }
 
 export const loadEnv = (source: NodeJS.ProcessEnv = process.env): Env => {
-  const parsed = envSchema.safeParse(source);
+  // `VAR=` (vazio, como no .env.example) vale como não definida: usa o padrão ou o modo de dev.
+  const defined = Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined && value.trim() !== ''),
+  );
+  const parsed = envSchema.safeParse(defined);
   if (!parsed.success) throw new InvalidEnvironmentError(parsed.error.issues);
   return parsed.data;
 };

@@ -23,21 +23,21 @@ por nível que ajuda iniciantes a conseguir o primeiro projeto, sem vantagem com
 ## Pré-requisitos
 
 - Node.js 22 (`.nvmrc`) e pnpm 12 (`npm i -g pnpm@12` ou `corepack enable`)
-- Docker (ou OrbStack) para Postgres, Redis, MinIO e Mailpit locais e para os testes de integração
+- Docker (ou OrbStack) para Postgres, Redis, storage S3 (RustFS), ClamAV e Mailpit locais e para os testes de integração
 
 ## Primeiros passos
 
 ```bash
 pnpm install
 cp .env.example apps/api/.env          # e ajuste se necessário
-pnpm infra:up                          # Postgres, Redis, MinIO, Mailpit
+pnpm infra:up                          # Postgres, Redis, RustFS (S3), ClamAV, Mailpit
 pnpm build && pnpm db:migrate          # aplica as migrações
 pnpm dev                               # api :3333 · web :3000 · landing :3001
 pnpm --filter @f4d/api dev:worker      # worker (relay do outbox) em outro terminal
 ```
 
 - API: <http://localhost:3333/v1/health> · OpenAPI em `/v1/openapi.json` (fora de produção)
-- Web: <http://localhost:3000> · Landing: <http://localhost:3001> · E-mails: <http://localhost:8025>
+- Web: <http://localhost:3000> · Landing: <http://localhost:3001> · E-mails: <http://localhost:8025> · Storage: <http://localhost:9001>
 
 ## Comandos
 

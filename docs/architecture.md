@@ -95,7 +95,7 @@ freelas-for-devs/
 │  ├─ config-eslint/            # flat config: base, next, nest, regras de boundary (eslint-plugin-boundaries)
 │  └─ config-vitest/            # presets de teste
 ├─ infra/
-│  ├─ docker-compose.yml        # postgres, redis, minio (R2 local), clamav, mailpit, stripe-cli
+│  ├─ docker-compose.yml        # postgres, redis, rustfs (R2 local), clamav, mailpit
 │  └─ deploy/                   # Dockerfiles (api/worker/realtime), railway/fly configs
 ├─ docs/adr/                    # Architecture Decision Records (1 por decisão desta seção)
 ├─ .github/workflows/
@@ -483,7 +483,7 @@ Prefixo `/v1`. Respostas de erro no formato **RFC 9457 (problem+json)** com `cod
 
 **CD e ambientes**
 
-- **local**: `docker compose` (postgres, redis, minio, clamav, mailpit, stripe-cli) + `pnpm dev`, com seeds de níveis, stacks, settings e usuários de teste.
+- **local**: `docker compose` (postgres, redis, rustfs, clamav, mailpit) + `pnpm dev`, com seeds de níveis, stacks, settings e usuários de teste.
 - **preview**: Vercel preview por PR (web/landing) apontando para a API de staging.
 - **staging**: deploy automático em merge na `main`. Banco com branch Neon e Stripe test mode.
 - **production**: deploy por tag/release com aprovação manual. As migrações rodam em um **release job** antes do rollout e seguem a política **expand → migrate → contract** (sem breaking em um só deploy). Feature flags simples via Setting.

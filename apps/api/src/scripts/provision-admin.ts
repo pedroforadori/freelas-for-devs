@@ -6,6 +6,7 @@
  * Imprime o link para definir a senha (válido por 24 h) e também o envia por e-mail.
  * No primeiro acesso, o painel exige configurar o 2FA antes de qualquer ação administrativa.
  */
+import '../shared/config/dotenv.js';
 import { parseArgs } from 'node:util';
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
