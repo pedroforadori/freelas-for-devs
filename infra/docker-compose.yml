@@ -55,7 +55,7 @@ services:
         for bucket in f4d-quarantine f4d-files; do
           aws --endpoint-url http://storage:9000 s3 mb "s3://$$bucket" 2>/dev/null || true
         done
-        aws --endpoint-url http://storage:9000 s3api put-bucket-cors --bucket f4d-quarantine --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://localhost:3000","http://localhost:3010"],"AllowedMethods":["PUT"],"AllowedHeaders":["*"]}]}'
+        aws --endpoint-url http://storage:9000 s3api put-bucket-cors --bucket f4d-quarantine --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://localhost:3010"],"AllowedMethods":["PUT"],"AllowedHeaders":["*"]}]}'
         echo buckets prontos
 
   # Antivírus dos uploads (protocolo clamd na porta 3310). Primeira subida baixa as assinaturas (~1–2 min).

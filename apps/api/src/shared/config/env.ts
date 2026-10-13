@@ -35,7 +35,7 @@ export const envSchema = z
     OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(1000).default(100),
 
     /** URL do apps/web, usada nos links enviados por e-mail. */
-    WEB_APP_URL: z.url().default('http://localhost:3000'),
+    WEB_APP_URL: z.url().default('http://localhost:3010'),
     /** URL pública desta API (callbacks do OAuth). */
     API_PUBLIC_URL: z.url().default('http://localhost:3333'),
 

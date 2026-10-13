@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const site = {
   name: 'Freelas 4 Devs',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3001',
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3010',
   allowIndexing: process.env.NEXT_PUBLIC_ALLOW_INDEXING === 'true',
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333',
   /**
